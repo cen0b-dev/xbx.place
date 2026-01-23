@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xbx.place</title>
+    <style>
+        /* --- METRO UI DESIGN SYSTEM --- */
+        :root {
+            --xbox-green: #107C10;
+            --metro-bg: #101010;
+            --metro-tile: #202020;
+            --text-primary: #ffffff;
+            --text-secondary: #aaaaaa;
+            --font-stack: 'Segoe UI', 'Helvetica Neue', sans-serif;
+            --tile-width: 170px;
+            --tile-height: 235px;
+        }
+
+        body {
+            background-color: var(--metro-bg);
+            color: var(--text-primary);
+            font-family: var(--font-stack);
+            margin: 0; padding: 0; overflow-y: scroll;
+        }
+
+        ::-webkit-scrollbar { width: 12px; height: 12px; }
+        ::-webkit-scrollbar-track { background: #151515; }
+        ::-webkit-scrollbar-thumb { background: #444; border: 2px solid #151515; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--xbox-green); }
+
+        .metro-header {
+            padding: 40px 60px 0 60px; position: sticky; top: 0; background: rgba(16, 16, 16, 0.95);
+            z-index: 2500; 
+            backdrop-filter: blur(10px); border-bottom: 1px solid #333;
+            display: flex; flex-direction: column; gap: 20px;
+        }
+
+        .header-top { display: flex; justify-content: space-between; align-items: flex-end; }
+        .brand h1 { font-weight: 300; font-size: 2.5rem; margin: 0; letter-spacing: -1px; white-space: nowrap; }
+        .brand span { color: var(--xbox-green); font-weight: 600; }
+
+        .header-pivots { display: flex; gap: 40px; margin-top: 10px; }
+        .main-pivot {
+            font-size: 1.8rem; font-weight: 300; text-transform: uppercase;
+            cursor: pointer; color: #666; padding-bottom: 10px; border-bottom: 4px solid transparent;
+            transition: all 0.2s;
+        }
+        .main-pivot:hover { color: #aaa; }
+        .main-pivot.active { color: white; border-bottom-color: var(--xbox-green); font-weight: 400; }
+
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .metro-input, .metro-select {
+            background: #333; border: 2px solid #333; color: white;
+            padding: 10px 15px; font-size: 1rem; transition: all 0.2s;
+            font-family: var(--font-stack); outline: none;
+        }
+        .metro-input { width: 300px; }
+        .metro-select { width: 180px; cursor: pointer; }
+        .metro-input:focus, .metro-select:focus { background: #222; color: white; border-color: var(--xbox-green); }
+
+        .container { padding: 40px 60px; max-width: 1600px; margin: 0 auto; position: relative; }
+        .section-title { font-size: 1.2rem; color: var(--text-secondary); margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; display: flex; justify-content: space-between; }
+        
+        .grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(var(--tile-width), 1fr)); 
+            gap: 20px; 
+            padding-bottom: 50px; 
+        }
+
+        /* --- TILES --- */
+        .tile {
+            background-color: var(--metro-tile); height: var(--tile-height);
+            position: relative; cursor: pointer; overflow: hidden;
+            transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1);
+            border: 2px solid transparent;
+            z-index: 1; 
+            will-change: transform;
+            backface-visibility: hidden;
+            transform: translateZ(0);
+        }
+
+        .tile:hover { 
+            transform: scale(1.05) translateZ(0); 
+            border-color: var(--xbox-green); 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5); 
+            z-index: 1002; 
+        }
+
+        .tile.active-parent {
+            border-color: var(--xbox-green);
+            transform: scale(1.05) translateZ(0);
+            z-index: 1002; 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.8);
+            background: #252525;
+        }
+
+        .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        
+        .tile-overlay {
+            position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.85);
+            padding: 10px; transform: translateY(100%); transition: transform 0.2s;
+        }
+        .tile:hover .tile-overlay, .tile.active-parent .tile-overlay { transform: translateY(0); }
+        .tile-title { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .badge { display: inline-block; font-size: 0.7rem; background: var(--xbox-green); color: white; padding: 2px 6px; border-radius: 2px; margin-top: 4px; }
+        .badge.dlc { background: #0078D7; }
+        .badge.gray { background: #444; }
+
+        /* --- GLOBAL DIMMER --- */
+        #dimmer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); 
+            z-index: 1000; 
+            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        body.dimmed #dimmer { opacity: 1; pointer-events: auto; }
+
+        /* --- THE DLC SHELF --- */
+        .dlc-shelf {
+            grid-column: 1 / -1; 
+            background: #181818;
+            border-top: 4px solid var(--xbox-green);
+            border-bottom: 1px solid #333;
+            overflow: hidden;
+            max-height: 0; 
+            transition: max-height 0.3s ease-out, opacity 0.3s;
+            opacity: 0;
+            margin-bottom: 0;
+            z-index: 1001; 
+            position: relative; 
+            pointer-events: auto; 
+        }
+        .dlc-shelf.open {
+            max-height: 1000px; 
+            opacity: 1;
+            padding: 20px 0;
+            margin-bottom: 20px;
+        }
+        .shelf-content { padding: 0 20px; }
+        .shelf-header { font-size: 1.2rem; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; color: #ddd; }
+        
+        .shelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+        .shelf-item {
+            background: #252525; padding: 15px; display: flex; align-items: center; justify-content: space-between;
+            transition: background 0.2s; text-decoration: none; color: white; border-left: 3px solid transparent;
+            cursor: pointer;
+        }
+        .shelf-item:hover { background: #333; border-left-color: var(--xbox-green); }
+        .shelf-info { display: flex; flex-direction: column; overflow: hidden; }
+        .shelf-name { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .shelf-type { font-size: 0.7rem; color: #888; text-transform: uppercase; margin-bottom: 2px; }
+        .shelf-icon { font-size: 1.2rem; color: var(--xbox-green); margin-left: 10px; }
+
+        /* --- MODAL UPDATED --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 3000;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        
+        .modal-blade {
+            background: #1f1f1f; width: 900px; height: 600px; display: flex;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.8); transform: scale(0.95);
+            transition: transform 0.2s; border-left: 6px solid var(--xbox-green);
+            position: relative; /* For bg positioning */
+            overflow: hidden; /* Clip bg */
+        }
+        .modal-overlay.active .modal-blade { transform: scale(1); }
+
+        /* Background Layer */
+        .modal-bg-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0; pointer-events: none;
+        }
+        .modal-bg {
+            width: 100%; height: 100%; object-fit: cover;
+            opacity: 0.15; /* Subtle */
+            -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+            mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+        }
+
+        /* Content Layers */
+        .modal-left { 
+            width: 320px; background: rgba(21, 21, 21, 0.95); 
+            padding: 30px; display: flex; flex-direction: column; justify-content: center; 
+            border-right: 1px solid #333; position: relative; z-index: 1;
+        }
+        .modal-cover { width: 100%; box-shadow: 0 5px 25px rgba(0,0,0,0.5); }
+        
+        .modal-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; z-index: 1; }
+        
+        .modal-header { padding: 30px 30px 10px 30px; background: transparent; }
+        .modal-header h2 { margin: 0; font-weight: 300; font-size: 2.2rem; line-height: 1.1; }
+        
+        /* Banner Styles */
+        .modal-banner {
+            display: block; max-width: 100%; max-height: 80px; width: auto;
+            margin-bottom: 15px; object-fit: contain; object-position: left bottom;
+        }
+
+        .meta-row { display: flex; gap: 15px; margin-top: 10px; color: #888; font-size: 0.9rem; align-items: center; }
+        .stars { color: gold; font-size: 1rem; letter-spacing: 2px; }
+        
+        .pivot-menu { display: flex; gap: 30px; padding: 0 30px; margin-top: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .pivot-item {
+            font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;
+            padding-bottom: 10px; cursor: pointer; color: #666; font-weight: 600;
+            transition: color 0.2s;
+        }
+        .pivot-item:hover { color: #aaa; }
+        .pivot-item.active { color: var(--text-primary); border-bottom: 4px solid var(--xbox-green); }
+        
+        .tab-content { padding: 30px; overflow-y: auto; flex: 1; display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s; }
+        
+        .description { font-size: 0.95rem; line-height: 1.6; color: #ddd; margin-bottom: 30px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: rgba(37, 37, 37, 0.8); padding: 20px; font-size: 0.85rem; }
+        .info-item { display: flex; flex-direction: column; }
+        .info-label { color: var(--xbox-green); font-weight: 600; margin-bottom: 4px; text-transform: uppercase; font-size: 0.75rem; }
+        
+        .dl-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        .dl-btn {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #2a2a2a; color: white; text-decoration: none; padding: 15px 20px;
+            transition: all 0.2s; border-left: 4px solid transparent;
+        }
+        .dl-btn:hover { background: #333; border-left-color: var(--xbox-green); transform: translateX(5px); }
+        .dl-btn .btn-left { display: flex; flex-direction: column; }
+        .dl-btn .dl-type { font-size: 0.7rem; color: #aaa; text-transform: uppercase; margin-bottom: 2px; }
+        .dl-btn .dl-name { font-weight: 600; font-size: 1rem; }
+        
+        .close-btn { position: absolute; top: 10px; right: 20px; background: none; border: none; color: #666; font-size: 2rem; cursor: pointer; z-index: 100; }
+        .loading-trigger { text-align: center; padding: 20px; color: #666; font-size: 0.9rem; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    
+    <div id="dimmer" onclick="closeShelf()"></div>
+
+    <header class="metro-header">
+        <div class="header-top">
+            <div class="brand"><h1>xbx.<span>place</span></h1></div>
+            <div class="controls">
+                <select id="sortFilter" class="metro-select">
+                    <option value="rating" selected>Sort: Best Rated</option>
+                    <option value="name">Sort: A-Z</option>
+                    <option value="newest">Sort: Newest</option>
+                </select>
+
+                <select id="regionFilter" class="metro-select">
+                    <option value="all">All Regions</option>
+                    <option value="USA">🇺🇸 USA</option>
+                    <option value="Europe">🇪🇺 Europe</option>
+                    <option value="Japan">🇯🇵 Japan</option>
+                    <option value="World">🌍 World / Multi</option>
+                </select>
+                <input type="text" id="searchInput" class="metro-input" placeholder="Search...">
+            </div>
+        </div>
+        
+        <div class="header-pivots">
+            <div class="main-pivot active" id="pivot-games" onclick="setCategory('Game')">GAMES</div>
+            <div class="main-pivot" id="pivot-addons" onclick="setCategory('DLC')">ADDONS & DLC</div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="section-title">
+            <span id="listTitle">All Games</span>
+            <span id="count" style="font-size: 0.9rem"></span>
+        </div>
+        
+        <div class="grid" id="gameGrid"></div>
+        <div id="scrollSentinel" class="loading-trigger">Loading more...</div>
+
+        <div id="dlcShelf" class="dlc-shelf">
+            <div class="shelf-content">
+                <div class="shelf-header">
+                    <div id="shelfTitleContainer" style="display: flex; align-items: center;">
+                        <span id="shelfTitle">Addons</span>
+                    </div>
+                    <button onclick="closeShelf()" style="background:none; border:none; color:#666; cursor:pointer; font-size:1.5rem">&times;</button>
+                </div>
+                <div class="shelf-grid" id="shelfGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal">
+        <div class="modal-blade">
+            <div class="modal-bg-container">
+                <img id="m-bg" class="modal-bg" src="" onerror="this.style.opacity=0">
+            </div>
+
+            <button class="close-btn" onclick="closeModal()">&times;</button>
+            
+            <div class="modal-left">
+                <img src="" class="modal-cover" id="m-cover" onerror="this.src='https://placehold.co/300x420/202020/ffffff.png?text=No+Cover'">
+            </div>
+            
+            <div class="modal-right">
+                <div class="modal-header">
+                    <img id="m-banner" class="modal-banner" src="" onerror="this.style.display='none'">
+                    
+                    <h2 id="m-title">Game Title</h2>
+                    <div class="meta-row"><div id="m-rating"></div><span id="m-year"></span><span id="m-genre"></span></div>
+                </div>
+                <div class="pivot-menu">
+                    <div class="pivot-item active" onclick="switchTab('overview')">Overview</div>
+                    <div class="pivot-item" onclick="switchTab('downloads')">Downloads</div>
+                </div>
+                <div id="tab-overview" class="tab-content active">
+                    <div class="description" id="m-desc"></div>
+                    <div class="info-grid">
+                        <div class="info-item"><span class="info-label">Developer</span><span class="info-value" id="m-dev">-</span></div>
+                        <div class="info-item"><span class="info-label">Publisher</span><span class="info-value" id="m-pub">-</span></div>
+                        <div class="info-item"><span class="info-label">Regions</span><span class="info-value" id="m-regions">-</span></div>
+                    </div>
+                </div>
+                <div id="tab-downloads" class="tab-content"><div id="dl-list"></div></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+        // --- CONFIGURATION ---
+        const BASE_PATH = 'x360db/titles/'; 
+
+        let db = [];
+        let filteredDB = [];
+        let displayedCount = 0;
+        let currentCategory = 'Game'; 
+        const BATCH_SIZE = 50;
+
+        const grid = document.getElementById('gameGrid');
+        const countLabel = document.getElementById('count');
+        const sentinel = document.getElementById('scrollSentinel');
+        const modal = document.getElementById('modal');
+        
+        const shelf = document.getElementById('dlcShelf');
+        const shelfTitle = document.getElementById('shelfTitle');
+        const shelfTitleContainer = document.getElementById('shelfTitleContainer');
+        const shelfGrid = document.getElementById('shelfGrid');
+        
+        const shelfSafeZone = document.createDocumentFragment(); 
+        shelfSafeZone.appendChild(shelf);
+
+        let activeTile = null;
+
+        const getArtPath = (titleId, type) => {
+            return `${BASE_PATH}${titleId.toUpperCase()}/artwork/${type}`;
+        };
+
+        fetch('master_index.json?t=' + Date.now())
+            .then(res => res.json())
+            .then(data => {
+                // Deduplicate before loading into main DB
+                db = deduplicateGames(data);
+                applyFilters();
+                setupInfiniteScroll();
+            })
+            .catch(err => console.error("Could not load master_index.json", err));
+
+        /**
+         * Deduplication Logic:
+         * Groups games by name. If duplicates exist, prioritizes the one with 
+         * a higher rating or more complete data. 
+         * Note: JS cannot synchronously check if boxart exists on the server, 
+         * so we assume the entry with better metadata/rating is the "complete" one.
+         */
+        function deduplicateGames(data) {
+            const map = new Map();
+            
+            data.forEach(game => {
+                // Normalize name for comparison
+                const normName = game.name.toLowerCase().trim();
+                
+                if (!map.has(normName)) {
+                    map.set(normName, game);
+                } else {
+                    const existing = map.get(normName);
+                    // Tie-breaker: Prefer the one with higher rating
+                    // If rating matches, prefer the one with a developer listed (proxy for better metadata)
+                    const scoreExisting = (existing.rating || 0) + (existing.developer ? 1 : 0);
+                    const scoreNew = (game.rating || 0) + (game.developer ? 1 : 0);
+                    
+                    if (scoreNew > scoreExisting) {
+                        map.set(normName, game);
+                    }
+                }
+            });
+            
+            return Array.from(map.values());
+        }
+
+        function setupInfiniteScroll() {
+            const observer = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting && displayedCount < filteredDB.length) {
+                    loadNextBatch();
+                }
+            }, { rootMargin: '200px' });
+            observer.observe(sentinel);
+        }
+
+        function setCategory(cat) {
+            currentCategory = cat;
+            closeShelf(); 
+            document.getElementById('pivot-games').classList.toggle('active', cat === 'Game');
+            document.getElementById('pivot-addons').classList.toggle('active', cat === 'DLC');
+            document.getElementById('listTitle').innerText = cat === 'Game' ? 'All Games' : 'All Addons & DLC';
+            applyFilters();
+        }
+
+        function applyFilters() {
+            if (shelf.parentNode !== shelfSafeZone) {
+                shelfSafeZone.appendChild(shelf);
+            }
+
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            const region = document.getElementById('regionFilter').value;
+            const sortMode = document.getElementById('sortFilter').value;
+
+            filteredDB = db.filter(game => {
+                const matchesName = game.name.toLowerCase().includes(term);
+                
+                let matchesDLCName = false;
+                if (currentCategory === 'DLC') {
+                    matchesDLCName = game.downloads.some(d => 
+                        (d.type === 'DLC' || d.type === 'Update') && 
+                        d.filename.toLowerCase().includes(term)
+                    );
+                }
+
+                let matchesCategory = false;
+                if (currentCategory === 'Game') {
+                    const hasGame = game.downloads.some(d => d.type === 'Game' || d.type === 'Demo' || !d.type);
+                    matchesCategory = hasGame || game.downloads.length === 0;
+                } else if (currentCategory === 'DLC') {
+                    matchesCategory = game.downloads.some(d => d.type === 'DLC' || d.type === 'Update');
+                }
+
+                if (!matchesCategory) return false;
+                
+                // Region Filter Logic
+                let matchesRegion = true;
+                if (region !== 'all') {
+                    // Check if game regions array includes the selected region
+                    // If metadata is messy, this might need loosening
+                    if (game.regions && Array.isArray(game.regions)) {
+                        matchesRegion = game.regions.includes(region) || game.regions.includes('World') || game.regions.includes('Region Free');
+                    }
+                }
+
+                const matchesQuery = currentCategory === 'DLC' ? (matchesName || matchesDLCName) : matchesName;
+                return matchesQuery && matchesRegion;
+            });
+
+            filteredDB.sort((a, b) => {
+                if (sortMode === 'name') {
+                    return a.name.localeCompare(b.name);
+                } else if (sortMode === 'rating') {
+                    // Sort High to Low
+                    return (b.rating || 0) - (a.rating || 0);
+                } else if (sortMode === 'newest') {
+                    return b.title_id.localeCompare(a.title_id);
+                }
+                return 0;
+            });
+
+            countLabel.innerText = `${filteredDB.length} found`;
+            grid.innerHTML = '';
+            displayedCount = 0;
+            activeTile = null;
+            loadNextBatch();
+        }
+
+        function loadNextBatch() {
+            const nextBatch = filteredDB.slice(displayedCount, displayedCount + BATCH_SIZE);
+            if(nextBatch.length === 0) { sentinel.style.display = 'none'; return; }
+            sentinel.style.display = 'block';
+
+            nextBatch.forEach(game => {
+                const tile = document.createElement('div');
+                tile.className = 'tile';
+                tile.dataset.id = game.title_id; 
+                
+                if (currentCategory === 'DLC') {
+                    tile.onclick = (e) => toggleShelf(e, tile, game);
+                } else {
+                    tile.onclick = () => openModal(game);
+                }
+
+                const imgUrl = getArtPath(game.title_id, 'boxart.jpg');
+                const placeholderUrl = `https://placehold.co/170x235/202020/ffffff.png?text=${encodeURIComponent(game.name)}`;
+                
+                const hasAddons = game.downloads.some(d => d.type === 'DLC');
+                let badge = '';
+                if (currentCategory === 'DLC') badge = `<span class="badge dlc">DLC Inside</span>`;
+                else if (hasAddons) badge = `<span class="badge dlc">Has Addons</span>`;
+
+                tile.innerHTML = `
+                    <img src="${imgUrl}" loading="lazy" onerror="this.src='${placeholderUrl}'">
+                    <div class="tile-overlay">
+                        <div class="tile-title">${game.name}</div>
+                        ${badge}
+                    </div>
+                `;
+                grid.appendChild(tile);
+            });
+            displayedCount += nextBatch.length;
+        }
+
+        function toggleShelf(e, tile, game) {
+            e.stopPropagation();
+
+            if (activeTile === tile) {
+                closeShelf();
+                return;
+            }
+
+            if (activeTile) activeTile.classList.remove('active-parent');
+            
+            activeTile = tile;
+            activeTile.classList.add('active-parent');
+            document.body.classList.add('dimmed');
+
+            const iconUrl = getArtPath(game.title_id, 'icon.png');
+            shelfTitleContainer.innerHTML = `
+                <img src="${iconUrl}" style="width:24px; height:24px; vertical-align:middle; margin-right:10px; border-radius:4px;" onerror="this.style.display='none'">
+                <span id="shelfTitle">Addons for ${game.name}</span>
+            `;
+
+            shelfGrid.innerHTML = '';
+            
+            const dlcs = game.downloads.filter(d => d.type === 'DLC' || d.type === 'Update');
+            
+            dlcs.forEach(dl => {
+                const a = document.createElement('a');
+                a.className = 'shelf-item';
+                a.href = dl.url;
+                a.target = '_blank';
+                a.rel = "noreferrer"; 
+                a.onclick = (evt) => evt.stopPropagation(); 
+
+                const cleanName = getCleanFileName(dl.filename);
+                const typeLabel = dl.type === 'Update' ? 'UPDATE' : 'ADDON';
+                a.innerHTML = `
+                    <div class="shelf-info">
+                        <span class="shelf-type">${typeLabel}</span>
+                        <span class="shelf-name" title="${cleanName}">${cleanName}</span>
+                    </div>
+                    <span class="shelf-icon">⬇</span>
+                `;
+                shelfGrid.appendChild(a);
+            });
+
+            let nextTile = tile.nextElementSibling;
+            while (nextTile && nextTile.offsetTop === tile.offsetTop && nextTile !== sentinel) {
+                nextTile = nextTile.nextElementSibling;
+            }
+            if (nextTile) {
+                grid.insertBefore(shelf, nextTile);
+            } else {
+                grid.appendChild(shelf);
+            }
+
+            setTimeout(() => {
+                shelf.classList.add('open');
+                shelf.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 50);
+        }
+
+        function closeShelf() {
+            shelf.classList.remove('open');
+            document.body.classList.remove('dimmed');
+            if (activeTile) activeTile.classList.remove('active-parent');
+            activeTile = null;
+            
+            setTimeout(() => {
+                if(!shelf.classList.contains('open')) shelfSafeZone.appendChild(shelf);
+            }, 400);
+        }
+
+        function openModal(game) {
+            switchTab('overview');
+            document.getElementById('m-title').innerText = game.name;
+            document.getElementById('m-desc').innerText = game.description || "";
+            document.getElementById('m-dev').innerText = game.developer || "";
+            document.getElementById('m-pub').innerText = game.publisher || "";
+            document.getElementById('m-regions').innerText = game.regions.join(', ');
+            document.getElementById('m-rating').innerHTML = getStars(game.rating);
+            
+            const coverPlaceholder = `https://placehold.co/300x420/202020/ffffff.png?text=${encodeURIComponent(game.name)}`;
+            const coverImg = document.getElementById('m-cover');
+            coverImg.src = getArtPath(game.title_id, 'boxart.jpg');
+            coverImg.onerror = function() { this.src = coverPlaceholder; };
+            
+            const bgImg = document.getElementById('m-bg');
+            bgImg.src = getArtPath(game.title_id, 'background.jpg');
+            bgImg.style.opacity = '0.15'; 
+
+            const bannerImg = document.getElementById('m-banner');
+            bannerImg.style.display = 'block';
+            bannerImg.src = getArtPath(game.title_id, 'banner.png');
+
+            const dlList = document.getElementById('dl-list');
+            dlList.innerHTML = '';
+            game.downloads.forEach(dl => {
+                 const btn = document.createElement('a');
+                 btn.className = 'dl-btn';
+                 btn.href = dl.url;
+                 btn.target = "_blank";
+                 btn.rel = "noreferrer";
+                 btn.innerHTML = `<span class="dl-name">${getCleanFileName(dl.filename)}</span> ⬇`;
+                 dlList.appendChild(btn);
+            });
+            modal.classList.add('active');
+        }
+
+        function getCleanFileName(filename) {
+            return filename.replace(/\.zip$|\.iso$/i, '')
+                .replace(/\(World\)|\(USA\)|\(Europe\)|\(Japan\)/g, '')
+                .replace(/\(Addon\)|\(DLC\)|\(Update\)/g, '')
+                .replace(/\[.*?\]/g, '')
+                .trim();
+        }
+
+        function getStars(rating) {
+            if (!rating) return '<span class="stars empty">★★★★★</span>';
+            const score = Math.round(rating);
+            let html = '<span class="stars">';
+            for(let i=0; i<5; i++) html += i < score ? '★' : '<span style="color:#444">★</span>';
+            return html + '</span>';
+        }
+
+        function switchTab(t) {
+             document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
+             document.getElementById('tab-'+t).classList.add('active');
+             document.querySelectorAll('.pivot-item').forEach(e => e.classList.remove('active'));
+             event.target.classList.add('active');
+        }
+        function closeModal() { modal.classList.remove('active'); }
+        modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+        document.getElementById('searchInput').addEventListener('input', applyFilters);
+        document.getElementById('regionFilter').addEventListener('change', applyFilters);
+        document.getElementById('sortFilter').addEventListener('change', applyFilters);
+
+    </script>
+</body>
+</html>
