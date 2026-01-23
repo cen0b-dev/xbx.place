@@ -41,6 +41,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);margin:0;ove
 .tile{background:var(--tile);height:var(--t-h);position:relative;cursor:pointer;overflow:hidden;border:2px solid transparent;transition:0.2s;transform:translateZ(0)}
 .tile.dim{filter:grayscale(100%);opacity:0.4}
 .tile.dim:hover{filter:grayscale(0);opacity:1}
+/* Tile active state z-index is 1002 */
 .tile:hover,.tile.active{transform:scale(1.05) translateZ(0);border-color:var(--green);box-shadow:0 10px 20px #0008;z-index:1002}
 .tile.active{background:#252525}
 .tile img{width:100%;height:100%;object-fit:cover}
@@ -83,13 +84,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);margin:0;ove
 .g-img{width:100%;border:2px solid #333;cursor:pointer}
 .g-img:hover{border-color:var(--green)}
 .close{position:absolute;top:10px;right:20px;background:0;border:0;color:#666;font-size:2rem;cursor:pointer;z-index:100}
-.shelf{grid-column:1/-1;background:#181818;border-top:4px solid var(--green);border-bottom:1px solid #333;max-height:0;opacity:0;transition:0.3s;overflow:hidden}
+
+/* FIX: Added relative position and z-index 1001 to sit above dimmer (1000) */
+.shelf{grid-column:1/-1;background:#181818;border-top:4px solid var(--green);border-bottom:1px solid #333;max-height:0;opacity:0;transition:0.3s;overflow:hidden;position:relative;z-index:1001;box-shadow:0 25px 50px #000c}
 .shelf.open{max-height:1000px;opacity:1;padding:20px 0;margin-bottom:20px}
+
 .s-item{background:#252525;padding:15px;display:flex;align-items:center;justify-content:space-between;color:#fff;text-decoration:none;border-left:3px solid transparent;margin-bottom:10px}
 .s-item:hover{background:#333;border-color:var(--green)}
 .s-item.dis{opacity:0.5;pointer-events:none;filter:grayscale(1)}
+
+/* Dimmer is z-index 1000 */
 #dimmer{position:fixed;top:0;left:0;width:100%;height:100%;background:#000d;z-index:1000;opacity:0;pointer-events:none;transition:0.2s}
 body.dimmed #dimmer{opacity:1;pointer-events:all}
+
 .footer{margin-top:80px;padding:40px 60px;border-top:1px solid #333;color:#666;font-size:0.9rem;display:flex;justify-content:space-between;background:#101010}
 .footer a{color:#888;text-decoration:none;margin-left:20px}
 .footer a:hover{color:var(--green)}
@@ -128,13 +135,10 @@ body.dimmed #dimmer{opacity:1;pointer-events:all}
     <div class="hero-grid" id="hGrid"></div>
     <div class="sec-title">
         <span id="lTitle">All Games</span>
-        <div style="display:flex;gap:15px;align-items:center">
-            <select id="sort" class="sel" style="padding:4px 10px"><option value="rating">Best Rated</option><option value="name">A-Z</option><option value="newest">Newest</option></select>
-            <span id="cnt" style="font-size:0.9rem"></span>
-        </div>
     </div>
     <div class="grid" id="grid"></div>
     <div id="sentinel" style="text-align:center;padding:20px;color:#666">Loading more...</div>
+    
     <div id="dlcShelf" class="shelf"><div style="padding:0 20px"><div style="margin-bottom:15px;display:flex;justify-content:space-between;color:#ddd;font-size:1.2rem"><div id="sTitle"></div><button onclick="shelf(0)" style="background:0;border:0;color:#666;font-size:1.5rem;cursor:pointer">&times;</button></div><div id="sGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px"></div></div></div>
 </div>
 
@@ -193,6 +197,10 @@ body.dimmed #dimmer{opacity:1;pointer-events:all}
 <script>
 const $ = i => document.getElementById(i);
 const CE = t => document.createElement(t);
+
+// Fixed Variable Storage
+let shelfEl = document.getElementById('dlcShelf');
+
 const PATH = 'x360db/titles/';
 const THEMES = [{c:'#107C10'},{c:'#0078D7'},{c:'#E81123'},{c:'#881798'},{c:'#FFB900'}];
 let db=[], fDB=[], cnt=0, cat='Game', actT=null;
@@ -250,12 +258,13 @@ function initHero(){
 }
 
 function filt(){
-    $('dlcShelf').remove(); 
+    // Remove shelf safely
+    if(shelfEl && shelfEl.parentNode) shelfEl.parentNode.removeChild(shelfEl);
+    
     const q=$('q').value.toLowerCase(), r=cfg.r, s=$('sort').value;
     fDB = db.filter(g=>{
         if(/demo|beta|trial/i.test(g.name)) return 0;
         let n = g.name.toLowerCase();
-        // Simple alias check could go here if needed
         const match = n.includes(q) || (cat==='DLC' && g.downloads.some(d=>(d.type==='DLC'||d.type==='Update') && d.filename.toLowerCase().includes(q)));
         const catM = cat==='Game' ? (g.downloads.length===0 || g.downloads.some(d=>d.type==='Game'||!d.type)) : g.downloads.some(d=>d.type==='DLC'||d.type==='Update');
         const regM = r==='all' || (g.regions && (g.regions.includes(r)||g.regions.includes('World')));
@@ -275,7 +284,9 @@ function load(){
     b.forEach(g=>{
         const t = CE('div'); t.className='tile skeleton';
         if(!g.downloads?.length) t.classList.add('dim');
+        
         t.onclick = cat==='DLC' ? (e)=>shelf(e,t,g) : ()=>openMod(g);
+        
         const img = new Image();
         img.src = `${PATH}${g.title_id}/artwork/boxart.jpg`;
         img.onload=()=>t.classList.remove('skeleton');
@@ -290,7 +301,6 @@ function load(){
     cnt+=b.length;
 }
 
-function setupInfiniteScroll() { /* Replaced by simpler IntersectionObserver below */ }
 const obs = new IntersectionObserver(e=>{ if(e[0].isIntersecting && cnt<fDB.length) load(); }, {rootMargin:'200px'});
 obs.observe($('sentinel'));
 
@@ -311,15 +321,21 @@ function saveSet(){
 
 function shelf(e,t,g){
     if(!e || actT===t){ 
-        $('dlcShelf').classList.remove('open'); document.body.classList.remove('dimmed'); 
+        shelfEl.classList.remove('open'); 
+        document.body.classList.remove('dimmed'); 
         if(actT) actT.classList.remove('active'); actT=null; return; 
     }
+    
     if(e.stopPropagation) e.stopPropagation();
     if(actT) actT.classList.remove('active');
     actT=t; t.classList.add('active'); document.body.classList.add('dimmed');
     
-    $('sTitle').innerHTML = `<img src="${PATH}${g.title_id}/artwork/icon.png" style="width:24px;vertical-align:middle;margin-right:10px" onerror="this.style.display='none'">${g.name} Addons`;
-    const sg = $('sGrid'); sg.innerHTML='';
+    // Using querySelector to target elements inside the detached shelfEl
+    shelfEl.querySelector('#sTitle').innerHTML = `<img src="${PATH}${g.title_id}/artwork/icon.png" style="width:24px;vertical-align:middle;margin-right:10px" onerror="this.style.display='none'">${g.name} Addons`;
+    
+    const sg = shelfEl.querySelector('#sGrid'); 
+    sg.innerHTML='';
+    
     g.downloads.filter(d=>d.type==='DLC'||d.type==='Update').forEach(d=>{
         const a = CE('a'); a.className = d.url?'s-item':'s-item dis';
         if(d.url) { a.href=d.url; a.target='_blank'; }
@@ -329,11 +345,16 @@ function shelf(e,t,g){
         sg.appendChild(a);
     });
     
-    // Insert after current row
+    // Find where to insert
     let next = t.nextElementSibling;
     while(next && next.offsetTop === t.offsetTop && next.id !== 'sentinel') next = next.nextElementSibling;
-    $('grid').insertBefore($('dlcShelf'), next);
-    setTimeout(()=>{$('dlcShelf').classList.add('open'); $('dlcShelf').scrollIntoView({behavior:'smooth',block:'nearest'})},50);
+    
+    $('grid').insertBefore(shelfEl, next); 
+    
+    setTimeout(()=>{
+        shelfEl.classList.add('open'); 
+        shelfEl.scrollIntoView({behavior:'smooth',block:'nearest'})
+    },50);
 }
 
 function openMod(g, push=1){
