@@ -1,4 +1,4 @@
-const fs = require('fs'); // Using standard fs for streams
+const fs = require('fs'); 
 const fsPromises = require('fs').promises;
 const path = require('path');
 const axios = require('axios');
@@ -15,13 +15,71 @@ const REPOSITORIES = [
     { name: "No-Intro", url: "https://myrient.erista.me/files/No-Intro/Microsoft%20-%20Xbox%20360%20(Digital)/" }
 ];
 
+// --- SEQUEL IDENTIFIERS ---
+// If a file matches the game name but is followed immediately by one of these, reject it.
+const SEQUEL_IDS = new Set([
+    '2', '3', '4', '5', '6', '7', '8', '9',
+    'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'
+]);
+
+// --- ALIAS DICTIONARY ---
+const ALIASES = {
+    "nfs": "need for speed",
+    "gta": "grand theft auto",
+    "cod": "call of duty",
+    "gow": "gears of war",
+    "mw": "modern warfare",
+    "tes": "the elder scrolls",
+    "lotr": "lord of the rings",
+    "sf": "street fighter",
+    "re": "resident evil",
+    "dbz": "dragon ball z",
+    
+    // Noise Removal
+    "tom clancys": "", 
+    "tom clancy": "", 
+    "sid meiers": "",
+    "cabelas": "",
+    "clive barkers": "",
+    "peter jacksons": "",
+    "lego": "",
+    "warhammer 40000": "warhammer 40k",
+    "warhammer 40k": "warhammer 40k"
+};
+
+/**
+ * Normalizes a string into a hyphenated token string.
+ * Ex: "Call of Duty: Black Ops II" -> "call-of-duty-black-ops-ii"
+ */
 function getCleanKey(str) {
     if (!str) return "";
-    return str.toLowerCase()
-        .replace(/\(.*?\)/g, '') 
-        .replace(/\[.*?\]/g, '')
-        .replace(/\.zip$|\.iso$|\.7z$/i, '')
-        .replace(/[^a-z0-9]/g, ''); 
+    let clean = str.toLowerCase();
+
+    clean = clean.replace(/'/g, ''); // Remove apostrophes
+
+    // Apply Aliases
+    for (const [key, replacement] of Object.entries(ALIASES)) {
+        const regex = new RegExp(`\\b${key}\\b`, 'g'); 
+        clean = clean.replace(regex, replacement);
+    }
+
+    // Standardize
+    return clean
+        .replace(/\(.*?\)/g, '')   // Remove text in ()
+        .replace(/\[.*?\]/g, '')   // Remove text in []
+        // Replace ANY non-alphanumeric char (space, dot, colon) with a hyphen
+        .replace(/[^a-z0-9]+/g, '-')
+        // Trim leading/trailing hyphens
+        .replace(/^-+|-+$/g, '');
+}
+
+function getCleanDisplayName(filename) {
+    return filename
+        .replace(/\.zip$|\.iso$/i, '')
+        .replace(/\(Disc \d+\)/i, '')
+        .replace(/\s*\(.*?\)/g, '') 
+        .replace(/\s*\[.*?\]/g, '') 
+        .trim();
 }
 
 function getFileType(filename) {
@@ -38,7 +96,7 @@ function generateFakeID(str) {
 
 async function generateIndex() {
     console.time("Total Time");
-    console.log("🚀 Starting Safe Index Generation...");
+    console.log("🚀 Starting Index Generation (With Sequel Guard)...");
 
     let allMyrientFiles = []; 
     
@@ -61,6 +119,7 @@ async function generateIndex() {
                         url: `${repo.url}${href}`,
                         type: getFileType(filename),
                         cleanKey: getCleanKey(filename),
+                        displayName: getCleanDisplayName(filename),
                         isClaimed: false
                     });
                     count++;
@@ -70,28 +129,25 @@ async function generateIndex() {
         } catch (e) { console.log(`❌ Failed: ${e.message}`); }
     }
 
-    // 2. OPEN WRITE STREAM (Prevents Memory Crash)
     const writeStream = fs.createWriteStream(OUTPUT_FILE, { flags: 'w' });
-    writeStream.write('[\n'); // Start JSON array
+    writeStream.write('[\n'); 
     let isFirstEntry = true;
 
-    // Helper to write a single entry
     const writeEntry = (entry) => {
         if (!isFirstEntry) writeStream.write(',\n');
         writeStream.write(JSON.stringify(entry, null, 2));
         isFirstEntry = false;
     };
 
-    // 3. PROCESS TITLES
+    // 2. PROCESS METADATA
     console.log("2️⃣  Processing Local Metadata...");
     if (fs.existsSync(TITLES_DIR)) {
         const titleIds = await fsPromises.readdir(TITLES_DIR);
-        const CONCURRENCY = 50; // Smaller chunks for safety
+        const CONCURRENCY = 50; 
 
         for (let i = 0; i < titleIds.length; i += CONCURRENCY) {
             const chunk = titleIds.slice(i, i + CONCURRENCY);
             
-            // Process chunk and get results
             const chunkResults = await Promise.all(chunk.map(async (titleId) => {
                 const infoPath = path.join(TITLES_DIR, titleId, 'info.json');
                 if (!fs.existsSync(infoPath)) return null;
@@ -102,29 +158,51 @@ async function generateIndex() {
                     const name = data.title?.full || data.title?.reduced || "Unknown";
                     if (name === "Unknown") return null;
 
-                    const cleanGameName = getCleanKey(name);
-                    
-                    // --- SAFETY FIX: PREVENT BLACK HOLE ---
-                    // If key is too short or empty, DO NOT attempt fuzzy matching
-                    if (cleanGameName.length < 3) return null; 
+                    // Collect valid keys (Main title + Media titles)
+                    const validMatchKeys = new Set();
+                    validMatchKeys.add(getCleanKey(name));
+                    if(data.title.reduced) validMatchKeys.add(getCleanKey(data.title.reduced));
+                    if (data.media && Array.isArray(data.media)) {
+                        data.media.forEach(m => {
+                            if (m.title) validMatchKeys.add(getCleanKey(m.title));
+                        });
+                    }
+                    validMatchKeys.delete("");
 
                     let validLinks = [];
-
                     allMyrientFiles.forEach(file => {
-                        // Strict check: File starts with Game Name
-                        if (file.cleanKey.startsWith(cleanGameName)) {
-                            validLinks.push({
-                                filename: file.filename,
-                                url: file.url,
-                                type: file.type,
-                                match_score: 100
-                            });
-                            file.isClaimed = true; 
+                        for (const key of validMatchKeys) {
+                            if (file.cleanKey.startsWith(key)) {
+                                
+                                // --- SEQUEL GUARD ---
+                                // Check if the extra characters imply a sequel
+                                const remainder = file.cleanKey.slice(key.length);
+                                
+                                // Remainder must start with a hyphen if strictly tokenized
+                                // Ex: "call-of-duty-black-ops-ii" vs "call-of-duty-black-ops" -> remainder "-ii"
+                                if (remainder.length > 0 && remainder.startsWith('-')) {
+                                    const nextToken = remainder.split('-')[1]; // Get the word after the hyphen
+                                    if (SEQUEL_IDS.has(nextToken)) {
+                                        // It's a sequel! Skip it.
+                                        continue; 
+                                    }
+                                }
+                                
+                                validLinks.push({
+                                    filename: file.filename,
+                                    url: file.url,
+                                    type: file.type,
+                                    match_score: 100
+                                });
+                                file.isClaimed = true; 
+                                break; 
+                            }
                         }
                     });
 
                     let regions = data.media ? [...new Set(data.media.map(m => m.region))] : [];
                     let rating = (data.user_rating && data.user_rating !== "null") ? parseFloat(data.user_rating) : null;
+                    let gallery = (data.artwork && Array.isArray(data.artwork.gallery)) ? data.artwork.gallery : [];
 
                     return {
                         title_id: titleId,
@@ -138,13 +216,13 @@ async function generateIndex() {
                         regions: regions,
                         icon_url: `${GITHUB_BASE}/${titleId}/artwork/icon.png`,
                         cover_url: `${GITHUB_BASE}/${titleId}/artwork/boxart.jpg`,
+                        artwork: { gallery: gallery },
                         downloads: validLinks
                     };
 
                 } catch (err) { return null; }
             }));
 
-            // Write chunk to disk immediately
             chunkResults.forEach(entry => {
                 if (entry) writeEntry(entry);
             });
@@ -154,49 +232,50 @@ async function generateIndex() {
     }
     console.log("\n   Metadata processed.");
 
-    // 4. ORPHAN SWEEPER
-    console.log("3️⃣  Sweeping for Orphans...");
-    let orphanCount = 0;
+    // 3. ORPHAN AGGREGATOR
+    console.log("3️⃣  Aggregating Orphans...");
+    const orphanMap = new Map();
 
     allMyrientFiles.forEach(file => {
         if (!file.isClaimed) {
-            let displayName = file.filename
-                .replace(/\.zip$|\.iso$/i, '')
-                .replace(/\(World\)|\(USA\)|\(Europe\)|\(Japan\)/g, '')
-                .replace(/\(Addon\)|\(DLC\)/g, '')
-                .trim();
+            const groupKey = file.displayName;
 
-            const orphanEntry = {
-                title_id: generateFakeID(file.filename),
-                name: displayName,
-                description: "This title was found on the file server but has no metadata in the database.",
-                developer: "Unknown",
-                publisher: "Unknown",
-                release_date: null,
-                genre: ["Uncategorized"],
-                rating: null,
-                regions: ["World"],
-                icon_url: "https://via.placeholder.com/64x64.png?text=?", 
-                cover_url: "https://via.placeholder.com/170x235.png?text=No+Data",
-                downloads: [{
-                    filename: file.filename,
-                    url: file.url,
-                    type: file.type,
-                    match_score: 100
-                }]
-            };
-            
-            writeEntry(orphanEntry);
-            orphanCount++;
+            if (!orphanMap.has(groupKey)) {
+                orphanMap.set(groupKey, {
+                    title_id: generateFakeID(groupKey),
+                    name: groupKey,
+                    description: "This title was found on the file server but has no metadata in the database.",
+                    developer: "Unknown",
+                    publisher: "Unknown",
+                    release_date: null,
+                    genre: ["Uncategorized"],
+                    rating: null,
+                    regions: ["World"],
+                    icon_url: "https://via.placeholder.com/64x64.png?text=?", 
+                    cover_url: "https://via.placeholder.com/170x235.png?text=No+Data",
+                    artwork: { gallery: [] },
+                    downloads: []
+                });
+            }
+
+            orphanMap.get(groupKey).downloads.push({
+                filename: file.filename,
+                url: file.url,
+                type: file.type,
+                match_score: 100
+            });
         }
     });
 
-    // 5. CLOSE STREAM
+    orphanMap.forEach(orphan => {
+        writeEntry(orphan);
+    });
+
     writeStream.write('\n]');
     writeStream.end();
 
     console.log(`\n🎉 Done! Scanned ${allMyrientFiles.length} files.`);
-    console.log(`   Found ${orphanCount} orphans (DLCs/Homebrew).`);
+    console.log(`   Consolidated ${orphanMap.size} unique orphan titles.`);
     console.timeEnd("Total Time");
 }
 

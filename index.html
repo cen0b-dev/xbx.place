@@ -73,12 +73,22 @@
         .tile {
             background-color: var(--metro-tile); height: var(--tile-height);
             position: relative; cursor: pointer; overflow: hidden;
-            transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1);
+            transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), filter 0.2s, opacity 0.2s;
             border: 2px solid transparent;
             z-index: 1; 
             will-change: transform;
             backface-visibility: hidden;
             transform: translateZ(0);
+        }
+
+        /* Dimmed State for No Downloads */
+        .tile.no-downloads {
+            filter: grayscale(100%);
+            opacity: 0.4;
+        }
+        .tile.no-downloads:hover {
+            filter: grayscale(0%);
+            opacity: 1;
         }
 
         .tile:hover { 
@@ -149,6 +159,8 @@
             cursor: pointer;
         }
         .shelf-item:hover { background: #333; border-left-color: var(--xbox-green); }
+        .shelf-item.disabled { opacity: 0.5; pointer-events: none; filter: grayscale(1); }
+        
         .shelf-info { display: flex; flex-direction: column; overflow: hidden; }
         .shelf-name { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .shelf-type { font-size: 0.7rem; color: #888; text-transform: uppercase; margin-bottom: 2px; }
@@ -232,6 +244,23 @@
         .dl-btn .btn-left { display: flex; flex-direction: column; }
         .dl-btn .dl-type { font-size: 0.7rem; color: #aaa; text-transform: uppercase; margin-bottom: 2px; }
         .dl-btn .dl-name { font-weight: 600; font-size: 1rem; }
+
+        /* Gallery Grid */
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+        }
+        .gallery-img {
+            width: 100%;
+            height: auto;
+            border: 2px solid #333;
+            transition: border-color 0.2s;
+            cursor: pointer;
+        }
+        .gallery-img:hover {
+            border-color: var(--xbox-green);
+        }
         
         .close-btn { position: absolute; top: 10px; right: 20px; background: none; border: none; color: #666; font-size: 2rem; cursor: pointer; z-index: 100; }
         .loading-trigger { text-align: center; padding: 20px; color: #666; font-size: 0.9rem; margin-top: 20px; }
@@ -312,7 +341,9 @@
                 <div class="pivot-menu">
                     <div class="pivot-item active" onclick="switchTab('overview')">Overview</div>
                     <div class="pivot-item" onclick="switchTab('downloads')">Downloads</div>
+                    <div class="pivot-item" onclick="switchTab('gallery')">Gallery</div>
                 </div>
+                
                 <div id="tab-overview" class="tab-content active">
                     <div class="description" id="m-desc"></div>
                     <div class="info-grid">
@@ -321,7 +352,14 @@
                         <div class="info-item"><span class="info-label">Regions</span><span class="info-value" id="m-regions">-</span></div>
                     </div>
                 </div>
-                <div id="tab-downloads" class="tab-content"><div id="dl-list"></div></div>
+                
+                <div id="tab-downloads" class="tab-content">
+                    <div id="dl-list"></div>
+                </div>
+
+                <div id="tab-gallery" class="tab-content">
+                    <div id="gallery-grid" class="gallery-grid"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -329,6 +367,22 @@
 <script>
         // --- CONFIGURATION ---
         const BASE_PATH = 'x360db/titles/'; 
+
+        // --- ALIAS DICTIONARY FOR SEARCH ---
+        // Maps short codes (nfs) to full queries (need for speed) and vice versa logic.
+        const ALIASES = {
+            "nfs": "need for speed",
+            "gta": "grand theft auto",
+            "cod": "call of duty",
+            "gow": "gears of war",
+            "mw": "modern warfare",
+            "tes": "the elder scrolls",
+            "lotr": "lord of the rings",
+            "sf": "street fighter",
+            "re": "resident evil",
+            "tc": "tom clancy",
+            "dbz": "dragon ball z"
+        };
 
         let db = [];
         let filteredDB = [];
@@ -358,42 +412,25 @@
         fetch('master_index.json?t=' + Date.now())
             .then(res => res.json())
             .then(data => {
-                // Deduplicate before loading into main DB
                 db = deduplicateGames(data);
                 applyFilters();
                 setupInfiniteScroll();
             })
             .catch(err => console.error("Could not load master_index.json", err));
 
-        /**
-         * Deduplication Logic:
-         * Groups games by name. If duplicates exist, prioritizes the one with 
-         * a higher rating or more complete data. 
-         * Note: JS cannot synchronously check if boxart exists on the server, 
-         * so we assume the entry with better metadata/rating is the "complete" one.
-         */
         function deduplicateGames(data) {
             const map = new Map();
-            
             data.forEach(game => {
-                // Normalize name for comparison
                 const normName = game.name.toLowerCase().trim();
-                
                 if (!map.has(normName)) {
                     map.set(normName, game);
                 } else {
                     const existing = map.get(normName);
-                    // Tie-breaker: Prefer the one with higher rating
-                    // If rating matches, prefer the one with a developer listed (proxy for better metadata)
                     const scoreExisting = (existing.rating || 0) + (existing.developer ? 1 : 0);
                     const scoreNew = (game.rating || 0) + (game.developer ? 1 : 0);
-                    
-                    if (scoreNew > scoreExisting) {
-                        map.set(normName, game);
-                    }
+                    if (scoreNew > scoreExisting) map.set(normName, game);
                 }
             });
-            
             return Array.from(map.values());
         }
 
@@ -425,7 +462,21 @@
             const sortMode = document.getElementById('sortFilter').value;
 
             filteredDB = db.filter(game => {
-                const matchesName = game.name.toLowerCase().includes(term);
+                // GLOBAL FILTER: Hide Demos/Betas by Name
+                if (/\b(demo|beta|trial|teaser)\b/i.test(game.name)) return false;
+
+                // --- SMART SEARCH MATCHING ---
+                let targetName = game.name.toLowerCase();
+                
+                // Expand target name with aliases
+                // e.g. If game is "NFS", we append " need for speed" to targetName so query finds it.
+                // e.g. If game is "Need for Speed", we append " nfs" to targetName so query finds it.
+                for (const [short, long] of Object.entries(ALIASES)) {
+                    if (targetName.includes(short)) targetName += " " + long;
+                    else if (targetName.includes(long)) targetName += " " + short;
+                }
+
+                const matchesName = targetName.includes(term);
                 
                 let matchesDLCName = false;
                 if (currentCategory === 'DLC') {
@@ -437,19 +488,21 @@
 
                 let matchesCategory = false;
                 if (currentCategory === 'Game') {
-                    const hasGame = game.downloads.some(d => d.type === 'Game' || d.type === 'Demo' || !d.type);
-                    matchesCategory = hasGame || game.downloads.length === 0;
+                    // STRICTER GAME CHECK: Must have 'Game' type or be legacy undefined
+                    const hasFullGame = game.downloads.some(d => d.type === 'Game' || !d.type);
+                    if (game.downloads.length > 0) {
+                        matchesCategory = hasFullGame;
+                    } else {
+                        matchesCategory = true; // Show empty metadata entries (greyed out)
+                    }
                 } else if (currentCategory === 'DLC') {
                     matchesCategory = game.downloads.some(d => d.type === 'DLC' || d.type === 'Update');
                 }
 
                 if (!matchesCategory) return false;
                 
-                // Region Filter Logic
                 let matchesRegion = true;
                 if (region !== 'all') {
-                    // Check if game regions array includes the selected region
-                    // If metadata is messy, this might need loosening
                     if (game.regions && Array.isArray(game.regions)) {
                         matchesRegion = game.regions.includes(region) || game.regions.includes('World') || game.regions.includes('Region Free');
                     }
@@ -463,7 +516,6 @@
                 if (sortMode === 'name') {
                     return a.name.localeCompare(b.name);
                 } else if (sortMode === 'rating') {
-                    // Sort High to Low
                     return (b.rating || 0) - (a.rating || 0);
                 } else if (sortMode === 'newest') {
                     return b.title_id.localeCompare(a.title_id);
@@ -487,6 +539,10 @@
                 const tile = document.createElement('div');
                 tile.className = 'tile';
                 tile.dataset.id = game.title_id; 
+
+                if (!game.downloads || game.downloads.length === 0) {
+                    tile.classList.add('no-downloads');
+                }
                 
                 if (currentCategory === 'DLC') {
                     tile.onclick = (e) => toggleShelf(e, tile, game);
@@ -541,9 +597,16 @@
             dlcs.forEach(dl => {
                 const a = document.createElement('a');
                 a.className = 'shelf-item';
-                a.href = dl.url;
-                a.target = '_blank';
-                a.rel = "noreferrer"; 
+                
+                if (dl.url) {
+                    a.href = dl.url;
+                    a.target = '_blank';
+                    a.rel = "noreferrer";
+                } else {
+                    a.classList.add('disabled');
+                    a.removeAttribute('href');
+                }
+
                 a.onclick = (evt) => evt.stopPropagation(); 
 
                 const cleanName = getCleanFileName(dl.filename);
@@ -588,10 +651,10 @@
         function openModal(game) {
             switchTab('overview');
             document.getElementById('m-title').innerText = game.name;
-            document.getElementById('m-desc').innerText = game.description || "";
-            document.getElementById('m-dev').innerText = game.developer || "";
-            document.getElementById('m-pub').innerText = game.publisher || "";
-            document.getElementById('m-regions').innerText = game.regions.join(', ');
+            document.getElementById('m-desc').innerText = game.description || "No description available.";
+            document.getElementById('m-dev').innerText = game.developer || "-";
+            document.getElementById('m-pub').innerText = game.publisher || "-";
+            document.getElementById('m-regions').innerText = game.regions ? game.regions.join(', ') : '-';
             document.getElementById('m-rating').innerHTML = getStars(game.rating);
             
             const coverPlaceholder = `https://placehold.co/300x420/202020/ffffff.png?text=${encodeURIComponent(game.name)}`;
@@ -607,21 +670,52 @@
             bannerImg.style.display = 'block';
             bannerImg.src = getArtPath(game.title_id, 'banner.png');
 
+            // --- DOWNLOADS LIST ---
             const dlList = document.getElementById('dl-list');
             dlList.innerHTML = '';
-            game.downloads.forEach(dl => {
-                 const btn = document.createElement('a');
-                 btn.className = 'dl-btn';
-                 btn.href = dl.url;
-                 btn.target = "_blank";
-                 btn.rel = "noreferrer";
-                 btn.innerHTML = `<span class="dl-name">${getCleanFileName(dl.filename)}</span> ⬇`;
-                 dlList.appendChild(btn);
-            });
+            if(game.downloads && game.downloads.length > 0) {
+                game.downloads.forEach(dl => {
+                    if(!dl.url) return; 
+                    const btn = document.createElement('a');
+                    btn.className = 'dl-btn';
+                    btn.href = dl.url;
+                    btn.target = "_blank";
+                    btn.rel = "noreferrer";
+                    btn.innerHTML = `<span class="dl-name">${getCleanFileName(dl.filename)}</span> ⬇`;
+                    dlList.appendChild(btn);
+                });
+            } else {
+                dlList.innerHTML = '<div style="color:#666; font-style:italic;">No downloads available.</div>';
+            }
+
+            // --- GALLERY LOGIC ---
+            const galleryGrid = document.getElementById('gallery-grid');
+            galleryGrid.innerHTML = '';
+            
+            if (game.artwork && game.artwork.gallery && Array.isArray(game.artwork.gallery)) {
+                game.artwork.gallery.forEach(imgSrc => {
+                    const img = document.createElement('img');
+                    img.className = 'gallery-img';
+                    
+                    if (imgSrc.startsWith('http')) {
+                        img.src = imgSrc;
+                    } else {
+                        img.src = `${BASE_PATH}${game.title_id.toUpperCase()}/artwork/${imgSrc}`;
+                    }
+                    
+                    img.loading = 'lazy';
+                    img.onclick = () => window.open(img.src, '_blank');
+                    galleryGrid.appendChild(img);
+                });
+            } else {
+                galleryGrid.innerHTML = '<div style="color:#666; font-style:italic; grid-column:1/-1;">No screenshots available.</div>';
+            }
+
             modal.classList.add('active');
         }
 
         function getCleanFileName(filename) {
+            if(!filename) return "Unknown File";
             return filename.replace(/\.zip$|\.iso$/i, '')
                 .replace(/\(World\)|\(USA\)|\(Europe\)|\(Japan\)/g, '')
                 .replace(/\(Addon\)|\(DLC\)|\(Update\)/g, '')
