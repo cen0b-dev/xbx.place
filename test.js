@@ -55,19 +55,34 @@ function getCleanKey(str) {
     if (!str) return "";
     let clean = str.toLowerCase();
 
+    // 1. Remove File Extensions (Crucial for the check below)
+    clean = clean.replace(/\.zip$|\.iso$/i, '');
+
+    // 2. Remove Tags immediately (Text in () or [])
+    // We do this EARLY so "Game, The (USA)" becomes "Game, The"
+    clean = clean.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim();
+
+    // 3. FIX: Handle ", The", ", A", ", An" suffixes
+    // Moves them to the front: "Simpsons, The" -> "The Simpsons"
+    if (clean.endsWith(', the')) {
+        clean = 'the ' + clean.substring(0, clean.length - 5);
+    } else if (clean.endsWith(', a')) {
+        clean = 'a ' + clean.substring(0, clean.length - 3);
+    } else if (clean.endsWith(', an')) {
+        clean = 'an ' + clean.substring(0, clean.length - 4);
+    }
+
     clean = clean.replace(/'/g, ''); // Remove apostrophes
 
-    // Apply Aliases
+    // 4. Apply Aliases
     for (const [key, replacement] of Object.entries(ALIASES)) {
         const regex = new RegExp(`\\b${key}\\b`, 'g'); 
         clean = clean.replace(regex, replacement);
     }
 
-    // Standardize
+    // 5. Standardize to tokens
     return clean
-        .replace(/\(.*?\)/g, '')   // Remove text in ()
-        .replace(/\[.*?\]/g, '')   // Remove text in []
-        // Replace ANY non-alphanumeric char (space, dot, colon) with a hyphen
+        // Replace ANY non-alphanumeric char (space, dot, colon, comma) with a hyphen
         .replace(/[^a-z0-9]+/g, '-')
         // Trim leading/trailing hyphens
         .replace(/^-+|-+$/g, '');
