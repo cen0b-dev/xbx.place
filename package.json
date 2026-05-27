@@ -1,0 +1,25 @@
+{
+  "name": "xbx.place",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "proxy": "tsx server/proxy.example.ts",
+    "sync:romsworlds": "node scripts/sync-romsworlds.mjs",
+    "build:x360db-catalog": "node scripts/build-x360db-catalog.mjs",
+    "build:data": "npm run build:x360db-catalog",
+    "build:ia-map": "node scripts/build-ia-map.mjs",
+    "build": "npm run build:data && tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "fuse.js": "^7.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0"
+  }
+}
