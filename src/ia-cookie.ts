@@ -76,10 +76,3 @@ export function buildIaBookmarklet(pair: IaCookiePair): string {
     "})();"
   );
 }
-
-export function iaCookiePoolHint(): string {
-  if (getIaCookiePool().length) {
-    return "Use Apply session in Preferences if downloads fail.";
-  }
-  return "";
-}

@@ -1,4 +1,4 @@
-import { getCurrentUser } from "./auth";
+import { getCurrentUser, onAuthChange } from "./auth";
 import { openAuthModal } from "./auth-ui";
 import { syncGameModalBackground } from "./data";
 import {
@@ -318,6 +318,13 @@ export async function openCollectionModal(game: TitleEntry): Promise<void> {
   await refreshModalData();
 }
 
+export function syncGameCollectionButton(): void {
+  const user = getCurrentUser();
+  const tooltip = user ? "Add this game to your collections" : "Sign in to save games to a collection";
+  document.getElementById("gp-collection-btn")?.setAttribute("title", tooltip);
+  document.getElementById("gp-collection-save-btn")?.setAttribute("title", tooltip);
+}
+
 export function bindCollectionUi(): void {
   const openForActiveGame = (): void => {
     if (!activeGame) return;
@@ -357,6 +364,9 @@ export function bindCollectionUi(): void {
   document.getElementById("collection-mod-save-btn")?.addEventListener("click", () => {
     void submitCollectionChanges();
   });
+
+  syncGameCollectionButton();
+  onAuthChange(() => syncGameCollectionButton());
 }
 
 export function setActiveGameForCollections(game: TitleEntry | null): void {

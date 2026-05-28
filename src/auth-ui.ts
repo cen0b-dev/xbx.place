@@ -16,6 +16,7 @@ import {
   updateCollection,
   type CollectionWithCount
 } from "./collections";
+import { bindCroppedCover } from "./cover-crop";
 import { coverUrl, loadTitles } from "./data";
 import { checkboxHtml } from "./form-controls";
 import {
@@ -168,7 +169,6 @@ function fillProfileForm(): void {
   const handle = `@${name.replace(/\s+/g, "").toLowerCase()}`;
   const memberSince = formatMemberSince(activeProfile?.created_at);
   const gamerpicPreview = document.getElementById("profile-pic-preview") as HTMLImageElement | null;
-  const bannerPreview = document.getElementById("profile-banner-preview") as HTMLImageElement | null;
   setText("profile-display-name", name);
   setText("profile-display-email", email);
   setText("profile-view-name", name);
@@ -188,9 +188,7 @@ function fillProfileForm(): void {
   if (bannerInput) bannerInput.value = banner;
   if (bioInput) bioInput.value = bio;
   if (gamerpicPreview) gamerpicPreview.src = image;
-  if (bannerPreview) {
-    bannerPreview.style.backgroundImage = banner ? `url("${banner}")` : "";
-  }
+  setProfileBannerPreview(banner);
   document.querySelectorAll<HTMLImageElement>("[data-profile-avatar]").forEach((img) => {
     img.src = image;
   });
@@ -206,6 +204,19 @@ async function getTitleIndex(): Promise<Map<string, TitleEntry>> {
 
 function profileHandleFromName(name: string): string {
   return `@${name.replace(/\s+/g, "").toLowerCase()}`;
+}
+
+function setProfileBannerPreview(bannerUrl: string | null | undefined): void {
+  const bannerPreview = document.getElementById("profile-banner-preview");
+  if (!bannerPreview) return;
+  const url = bannerUrl?.trim() || "";
+  bannerPreview.classList.toggle("profile-hub-banner--custom", Boolean(url));
+  bannerPreview.classList.toggle("profile-hub-banner--fallback", !url);
+  if (url) {
+    bannerPreview.style.backgroundImage = `url("${url}")`;
+  } else {
+    bannerPreview.style.backgroundImage = "";
+  }
 }
 
 function publicProfileRouteUrl(gamertag: string): string {
@@ -235,15 +246,12 @@ function fillPublicProfileView(profile: PublicProfile): void {
   const bio = profile.bio || "";
   const handle = profileHandleFromName(name);
   const memberSince = formatMemberSince(profile.created_at);
-  const bannerPreview = document.getElementById("profile-banner-preview") as HTMLElement | null;
 
   setText("profile-view-name", name);
   setText("profile-view-bio", bio || "No bio yet.");
   setText("profile-view-handle", handle);
   setText("profile-view-member-tile", memberSince);
-  if (bannerPreview) {
-    bannerPreview.style.backgroundImage = banner ? `url("${banner}")` : "";
-  }
+  setProfileBannerPreview(banner);
   document.querySelectorAll<HTMLImageElement>("[data-profile-avatar]").forEach((img) => {
     img.src = image;
   });
@@ -267,7 +275,9 @@ async function renderCollectionGames(container: HTMLElement, collectionId: strin
       }
       return `
         <button class="profile-collection-game" type="button" data-title-id="${escapeHtml(game.title_id)}">
-          <img src="${coverUrl(game.title_id)}" alt="" loading="lazy" />
+          <div class="profile-collection-game-cover cover-crop-view">
+            <img alt="" loading="lazy" data-cover-id="${escapeHtml(game.title_id)}" />
+          </div>
           <span>${escapeHtml(game.name)}</span>
         </button>
       `;
@@ -275,8 +285,14 @@ async function renderCollectionGames(container: HTMLElement, collectionId: strin
     .join("")}</div>`;
 
   container.querySelectorAll<HTMLButtonElement>("[data-title-id]").forEach((button) => {
+    const img = button.querySelector<HTMLImageElement>("[data-cover-id]");
+    const titleId = button.dataset.titleId;
+    if (img && titleId) {
+      bindCroppedCover(img, coverUrl(titleId), {
+        fallbackSrc: `https://placehold.co/280x350/202020/ffffff.png?text=${encodeURIComponent(button.querySelector("span")?.textContent ?? "Game")}`
+      });
+    }
     button.addEventListener("click", () => {
-      const titleId = button.dataset.titleId;
       if (!titleId) return;
       window.dispatchEvent(new CustomEvent("xbx-open-game", { detail: { titleId } }));
     });
@@ -630,6 +646,7 @@ function showProfilePageShell(push: boolean, profileParam: string): void {
   document.getElementById("gamePage")?.classList.add("hidden");
   document.getElementById("gamePage")?.setAttribute("aria-hidden", "true");
   document.getElementById("downloadMod")?.classList.remove("show");
+  document.getElementById("packageMod")?.classList.remove("show");
   document.body.classList.add("profile-view");
   syncHeaderAccountPlacement();
   document.getElementById("profilePage")?.classList.remove("hidden");
@@ -948,7 +965,7 @@ export function authModalMarkup(): string {
       </div>
     </div>
     <section class="profile-hub hidden" id="profilePage" aria-label="User profile">
-      <div class="profile-hub-banner" id="profile-banner-preview">
+      <div class="profile-hub-banner profile-hub-banner--fallback" id="profile-banner-preview">
         <div class="profile-hub-banner-shade"></div>
       </div>
       <div class="profile-hub-shell">

@@ -1,0 +1,11 @@
+{
+  "_comment": "Maps normalized Redump ROM label keys to x360db title_id when automatic matching fails.",
+  "overrides": {
+    "deathsmiles": "545A07D1",
+    "deathsmiles pal": "545A07D1",
+    "death smiles": "545A07D1",
+    "are you smarter than a 5th grader game time": "54510840",
+    "fantasia music evolved": "42560824",
+    "disney fantasia music evolved": "42560824"
+  }
+}

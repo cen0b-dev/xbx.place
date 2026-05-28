@@ -161,6 +161,37 @@ export const SORT_OPTIONS: DropdownOption[] = [
   { value: "newest", label: "Newest" }
 ];
 
+export const ADDON_SORT_OPTIONS: DropdownOption[] = [
+  { value: "name", label: "Game A-Z" },
+  { value: "packs", label: "Most Files" },
+  { value: "newest", label: "Newest Release" }
+];
+
+export function replaceDropdownOptions(
+  id: string,
+  options: DropdownOption[],
+  value: string,
+  onChange?: (value: string) => void
+): void {
+  const dropdown = document.getElementById(id);
+  if (!dropdown) return;
+
+  const selected = options.find((option) => option.value === value) ?? options[0];
+  const menu = dropdown.querySelector(".ui-dropdown-menu");
+  if (!menu || !selected) return;
+
+  menu.innerHTML = options
+    .map((option) => {
+      const selectedClass = option.value === selected.value ? " is-selected" : "";
+      return `<button type="button" class="ui-dropdown-option${selectedClass}" role="option" data-value="${escapeAttr(option.value)}" aria-selected="${option.value === selected.value}">${option.label}</button>`;
+    })
+    .join("");
+
+  syncDropdownUi(dropdown, selected.value);
+  delete dropdown.dataset.bound;
+  mountDropdown(id, onChange);
+}
+
 export const REGION_OPTIONS: DropdownOption[] = [
   { value: "all", label: "All Regions" },
   { value: "USA", label: "USA" },

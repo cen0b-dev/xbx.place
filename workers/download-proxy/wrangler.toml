@@ -1,0 +1,18 @@
+# Deploy (free): cd workers/download-proxy && npx wrangler deploy
+# Then set GitHub repo variable VITE_DOWNLOAD_PROXY_ORIGIN to https://<name>.<subdomain>.workers.dev
+
+name = "xbx-place-download-proxy"
+main = "worker.mjs"
+compatibility_date = "2024-12-01"
+
+# Public URL of master_index.json after GitHub Pages deploy (same catalog the site uses).
+[vars]
+MASTER_INDEX_URL = "https://xbx.place/master_index.json"
+
+# Optional comma-separated allowlist override:
+# ALLOWED_DOWNLOAD_HOSTS = "archive.org,vimm.net,file.romsworlds.com,1fichier.com"
+
+# Supabase guest download limits (set as secrets, never commit service role):
+#   npx wrangler secret put SUPABASE_URL
+#   npx wrangler secret put SUPABASE_ANON_KEY
+#   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY

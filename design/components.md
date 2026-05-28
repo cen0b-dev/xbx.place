@@ -1,373 +1,392 @@
 # Components
 
-Component-level specs for xbx.place. Class names match `src/styles.css` and markup in `src/main.ts`.
+Component specs for xbx.place. Class names match `src/styles.css` and markup in `src/main.ts` / `src/auth-ui.ts`.
 
 ---
 
 ## App shell
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  HEADER (sticky, frosted)                                    │
-│  brand · account · pivots · search                           │
-│  BROWSE TOOLBAR: sort catalog · region · active filter chips │
-│  PIVOTS: GAMES | ADDONS & DLC                                │
-├─────────────────────────────────────────────────────────────┤
-│  BROWSE PAGE (max 1600px, `.browse-page-shell`)              │
-│  SITE HERO (marketing banner, compact on return visit)       │
-│  TOP RATED row (3 hero cards; carousel on mobile)            │
-│  BROWSE BY GENRE (chip grid; above featured on mobile)       │
-│  CATALOG: title + count · tile grid + pager · empty state    │
-│  SHELF (inline expand, DLC)                                  │
-├─────────────────────────────────────────────────────────────┤
-│  FOOTER                                                      │
-└─────────────────────────────────────────────────────────────┘
-     [dimmer layer when shelf/tile focused]
-     [game details full-page view: body.game-view]
-     [overlays: settings | download | collection | auth]
-     [back-to-top FAB]
+┌──────────────────────────────────────────────────────────────┐
+│  HEADER (sticky)                                              │
+│  top-bar: logo + account (profile mode)                       │
+│  profile-back-link (profile / game views)                     │
+│  nav-row: pivots · search · sign-in / avatar menu             │
+├──────────────────────────────────────────────────────────────┤
+│  #browsePage (.browse-page-shell, max 1600px)                 │
+│    site-hero → featured row → genre/package rail → catalog    │
+├──────────────────────────────────────────────────────────────┤
+│  #gamePage (body.game-view)                                   │
+│  #profilePage (body.profile-view)                             │
+├──────────────────────────────────────────────────────────────┤
+│  FOOTER (hidden in game-view)                                 │
+└──────────────────────────────────────────────────────────────┘
+  Overlays: #setMod · #authMod · #accountSettingsMod ·
+            #downloadMod · #packageMod · #collectionMod · #mediaLightbox
+  #btt — back to top FAB
 ```
 
-View modes: default browse, `body.game-view` (title detail), `body.profile-view` (profile hub), `body.browse-mode-dlc` (DLC pivot active — contextual hero/featured copy).
+| Body class | Visible main surface |
+|------------|---------------------|
+| *(none)* | Browse, games pivot |
+| `browse-mode-dlc` | Browse, add-ons pivot (list cards) |
+| `game-view` | `#gamePage` |
+| `profile-view` | `#profilePage` |
 
 ---
 
 ## Header (`.header`)
 
-**Role**: Persistent navigation chrome — Xbox **Store pivot bar** analogue.
+**Role:** Persistent Xbox-style hub chrome.
 
 | Part | Classes | Behavior |
 |------|---------|----------|
-| Sticky bar | `.header` | Sticks to top; blurred dark fill; `z-index: 2500` |
-| Brand | `.brand h1` | `xbx.` light + `place` in accent green |
-| Controls | `.controls` | Account trigger, settings |
-| Pivots | `.pivot` | Category switch; active = white text + 4px green bottom border |
-| Search | `.nav-search .inp` | Debounced catalog filter |
+| Sticky bar | `.header` | `z-index: 2500`, frosted `#101010f2`, bottom border |
+| Brand | `.brand` + logo | `xbx.` + accent `place`; click → home / close views |
+| Top account | `#header-account-fallback` | Avatar slot when not in browse nav row |
+| Back | `.profile-back-link` | Shown in `game-view` / `profile-view` |
+| Pivots | `.pivot` | `GAMES` / `ADDONS & DLC`; active = white + 4px `--green` underline |
+| Search | `#q.inp` in `.nav-search` | Fuse.js filter; placeholder shows catalog count |
+| Account | `.account-trigger` | Guest: icon + "Sign In"; signed-in: circular gamerpic pill |
+| Account menu | `.account-menu` | Dropdown: profile, preferences, sign out (shares drawer chrome) |
 
-Pivot inactive color `var(--text-muted)`; hover `var(--text-sec)`. Only one pivot active at a time.
-
-### Browse toolbar (`.browse-toolbar-row`)
-
-**Role**: Unified catalog refinement — sort, region, and active filter chips. Lives in the sticky header below pivots/search.
-
-| Part | Classes | Behavior |
-|------|---------|----------|
-| Toolbar row | `.browse-toolbar-row` | Hidden in `body.game-view` / `body.profile-view` via `.browse-only` |
-| Controls | `.browse-toolbar-controls` | Sort + region dropdowns |
-| Field label | `.browse-toolbar-label` | Uppercase micro-label (`Sort catalog`, `Region`) |
-| Sort | `#sort` `.ui-dropdown--compact` | Catalog sort (rating, A–Z, newest) |
-| Region | `#browseReg` `.ui-dropdown--compact` | Filters featured + catalog; synced with settings `#reg` |
-| Active filters | `#browseFilterBar` `.browse-filter-bar` | Genre, region, and search chips with clear actions |
-
-Mental model: **header = mode + search**, **toolbar = refine catalog**.
+Browse-only rows use `.browse-only` (hidden in game/profile views).
 
 ---
 
 ## Site hero (`.site-hero`)
 
-**Role**: Above-the-fold marketing banner with crossfading background slides, cover fan, stats, and CTAs.
+**Role:** Marketing banner above the catalog.
 
-| Part | Classes | Notes |
-|------|---------|-------|
-| Container | `.site-hero` | Left 6px green accent stripe, `--r-lg`, `--surface-shelf` fill |
-| Background | `.site-hero-slides` / `.site-hero-slide` | Crossfading cover art (`heroCrossfade` 20s) |
-| Copy | `.site-hero-eyebrow`, `.site-hero-title`, `.site-hero-lead` | Contextual copy in DLC mode via `#siteHeroEyebrow` etc. |
-| Stats | `.site-hero-stat` | Game/add-on counts; `.site-hero-stat--emphasis` in DLC mode |
-| Covers | `.site-hero-covers` / `.site-hero-cover` | Stacked fan with hover lift |
-| Compact | `.site-hero--compact` | Collapsed bar for return visitors (`localStorage` `x_hero_seen`) |
-| Toggle | `.site-hero-compact-toggle` | Expand/collapse control |
+| Part | Notes |
+|------|-------|
+| Container | Left green tint gradient, `--r-lg`, `--shadow-panel` |
+| Background | `.site-hero-slides` — crossfading cover art (`heroCrossfade`, 20s) |
+| Copy | Eyebrow, title (accent span), lead, stat pills, "Browse catalog" CTA |
+| Stats | `#siteHeroGames` / `#siteHeroAddons` — live counts; emphasis toggles in DLC mode |
+| Visual | `.site-hero-covers` — three floating cropped covers with `heroCoverFloat` |
+| DLC mode | Copy/eyebrow/stats swap via `updateBrowseModeChrome()` |
+
+No compact/collapse mode in current build — hero is always full height (responsive single column ≤ 900px).
 
 ---
 
-## Browse page (`.browse-page`)
+## Browse sections
 
-**Role**: Primary catalog — Xbox Store grid analogue.
+Shared section chrome:
 
-### Section title (`.game-section-title`)
+- `.browse-section-head` — flex row with bottom rule
+- `.game-section-title` — uppercase section label
+- `.browse-section-sub` — muted subtitle under title
+- `.browse-section--rail` — `--surface-rail` panel with border + `--r-lg`
 
-Metro **hub section header** (shared with game details and modals):
-
-- Uppercase, letter-spaced, `var(--text-sec)` color
-- Bottom rule `1px solid var(--border-subtle)`
-- Flex row: title left, controls (count) right
-
-### Genre discovery (`.genre-grid` / `.genre-chip`)
-
-**Role**: Genre filter chips — full-width flex grid below featured (above featured on mobile via `.browse-discovery` order).
-
-| State | Visual |
-|-------|--------|
-| Default | `var(--surface-raised)`, `--r-md`, 1px border |
-| Hover | Lighter border, subtle shadow |
-| `.is-active` | `--selected-bg`, green border + inset ring |
-
-Active genre syncs to URL `?genre=` and appears in `#browseFilterBar`.
-
-### Filter bar (`.browse-filter-bar` / `.browse-filter-chip`)
-
-Pill chips for active genre, region (when not "All Regions"), and search query. Includes per-chip dismiss and "Clear all" action.
-
-### Hero grid (`.browse-hero-grid` / `.browse-hero-card`)
-
-**Role**: **Top Rated** row — deterministic daily rotation of highest-rated titles (DLC mode: titles with add-ons).
+### Featured row (`.browse-hero-grid`)
 
 | Property | Value |
 |----------|-------|
-| Layout | 3 equal columns desktop; horizontal snap carousel ≤900px |
-| Card | `#1c1c1c` bg, `--r-lg`, 1px border; `<button>` element |
-| Image | `.browse-hero-bg` full bleed, 84% opacity when loaded |
-| Hover | Green border, `translateY(-3px)`, image scale 1.04 |
-| Focus | `:focus-visible` 2px green outline |
-| Text | `.browse-hero-copy` gradient shade; `.browse-hero-eyebrow` green micro-label |
+| Layout | 3-column grid desktop; horizontal snap carousel ≤ 900px |
+| Card | `.browse-hero-card` — `<button>`, min-height 220px, `#1c1c1c` |
+| Art | `.browse-hero-bg` full bleed; `.browse-hero-shade` dual gradient |
+| Rank pill | `.browse-hero-rank` top-left |
+| Factory | `createHeroCard()` in `src/browse-card.ts` |
 
-Shared card factory: `createHeroCard()` in `src/browse-card.ts`.
+Games mode: top-rated by community score. DLC mode: titles with add-on packages.
 
-Hero cards are **wide landscape** tiles; grid tiles below are **portrait covers**.
+### Genre rail (`.genre-grid--rail`)
 
-Section containers use `.browse-section--rail` (`--surface-rail` background, `--r-lg` radius).
+Horizontal scroll row of `.genre-chip` buttons:
 
-### Tile grid (`.browse-grid` / `.browse-card`)
+| State | Visual |
+|-------|--------|
+| Default | `--surface-raised`, `--r-md`, icon + label |
+| Hover | Lighter border, subtle shadow |
+| `.is-active` | `--selected-bg`, green border + inset ring |
 
-**Role**: Primary catalog grid.
+Syncs to `?genre=`. On mobile, genre section **orders above** featured (`order: -1`).
+
+### Package type rail (DLC only)
+
+Same chip pattern as genres; filters `?package=` (`all` | `dlc` | `update`). Hidden unless `body.browse-mode-dlc`.
+
+### Catalog section (`.browse-section--catalog`)
+
+| Part | Role |
+|------|------|
+| Title | `#lTitle` — "All Games" / add-on variant |
+| Score tooltip | `.browse-score-info` — explains 0–100 community score |
+| Count | `#cnt` — filtered total |
+| Filter trigger | `.browse-filter-trigger` — opens drawer; badge shows active filter count |
+| Filter bar | `#browseFilterBar` — removable chips (genre, region, search) |
+| Grid | `#grid` — infinite scroll tiles |
+| Sentinel | `#gridSentinel` — IntersectionObserver load-more |
+| Status | `#pager` — **"Showing N of M"** text only (not page buttons) |
+
+---
+
+## Filter drawer (`.browse-filter-drawer`)
+
+**Role:** Sort + region controls (moved out of header toolbar).
+
+| Part | Behavior |
+|------|----------|
+| Host | `.browse-filter-drawer-host` — relative anchor in catalog header |
+| Panel | Absolute dropdown, `min(380px, 100vw - 36px)`, `--shadow-panel` |
+| Fields | `#sort` dropdown, `#browseReg` region (synced with Preferences `#reg`) |
+| Reset | `#browseFilterReset` — clears sort/region to defaults |
+| Active state | Trigger gets `.is-active` + green ring when filters differ from default |
+
+Account menu reuses drawer head/close classes for visual consistency.
+
+---
+
+## Game grid (`.browse-grid` / `.browse-card`)
+
+**Role:** Primary games catalog — portrait cover tiles.
 
 ```
-┌──────────┐
-│  cover   │  ← cropped X360 box art
-│  (image) │
-│──────────│
-│ overlay  │  ← persistent bottom gradient (title, score, stars, badge)
-└──────────┘
+┌─────────────┐
+│ cover-crop  │  ← aspect-ratio from --t-w / --cover-visible-h
+│   (image)   │
+│  ::after    │  ← bottom gradient scrim
+│  overlay    │  ← title, stars, score badge
+│  hover layer│  ← title, meta, "View" CTA (on hover)
+└─────────────┘
 ```
 
 | State | Visual |
 |-------|--------|
-| Default | `var(--tile)`, `--r-md`, 2px transparent border; `<button>` element |
-| Hover / `.active` | `scale(1.05)`, green border, `var(--shadow-tile-hover)`, `z-index: 1002` |
-| `:focus-visible` | 2px green outline offset |
-| `.browse-card--dim` | Grayscale + 40% opacity (contextual de-emphasis) |
-| `.is-loading` | Shimmer pseudo-element |
-| `.active` | Background `var(--surface-raised)` (selected for shelf) |
+| Default | `--tile`, 2px transparent border |
+| Hover / focus | `scale(1.02)`, green border, overlay swaps to hover panel |
+| `.browse-card--dim` | Grayscale + 45% opacity (no downloads) |
+| `.is-loading` | Shimmer pseudo until cover loads |
+| Badge | `.browse-card-addon-badge` — "+ Addons" when DLC present |
 
-Shared card factory: `createGridCard()` in `src/browse-card.ts`.
-
-### Tile overlay (`.browse-card-ov`)
-
-- Always visible on loaded tiles (persistent bottom gradient via `::after` scrim)
-- Title, Metacritic-style score (`.browse-tile-score--*`), stars, optional badge
-- Score tiers use tokens: `--score-high`, `--score-mid`, `--score-low`, `--score-muted-*`
-
-### Empty catalog (`.browse-empty`)
-
-Shown when filters yield zero results: icon, title, active filter chips, and "Clear all filters" CTA.
-
-### Tags (`.game-tag`)
-
-- Rectangular `--r-sm`, uppercase micro-type
-- Used on tile overlays and game details tags
-- Platform variant: `.game-tag--platform` (green fill)
-
-### Pagination (`.browse-pager` / `.page-btn`)
-
-Centered control row below grid:
-
-- Buttons: 38px min-height, `--r-sm`, dark `var(--surface-panel)`
-- Active page: filled `--green`
-- Hover: green border on enabled buttons
-- `.page-meta`: muted count text
+Factory: `createGridCard()` in `src/browse-card.ts`. Batch-loaded via infinite scroll (`ROWS_PER_BATCH` × column count; 40 items per batch in DLC mode).
 
 ---
 
-## DLC shelf (`.browse-shelf`)
+## Add-on list (`.browse-grid--addons` / `.addon-list-card`)
 
-**Role**: Inline panel — expands in-grid when a base game with addons is selected.
+**Role:** DLC pivot catalog — horizontal list rows, max-width `--addon-list-max`.
 
-| State | Behavior |
-|-------|----------|
-| Collapsed | `max-height: 0`, `opacity: 0` |
-| `.open` | Animates open, green **top** accent 3px, frosted panel shadow |
+| Part | Notes |
+|------|-------|
+| Layout | Flex column, centered 960px |
+| Card | `.addon-list-card` — row: cropped thumb, title, package summary, chevron CTA |
+| Click | Opens `#packageMod` (not inline shelf) |
+| `.addon-list-card--dim` | No downloadable packages |
+| Factory | `createAddonListCard()` |
 
-### Shelf item (`.s-item`)
-
-- Row layout: title left, download affordance right
-- `--r-md`, left 3px border → green on hover
-- `.dis`: grayscale, no pointer, 50% opacity
+No scale transform on hover — border/background emphasis only.
 
 ---
 
-## Game details page (`.game-page`)
+## Game detail page (`#gamePage` / `.game-page`)
 
-**Role**: Full-page in-app title view (not a modal). Activated via `body.game-view`.
+**Role:** Full-page title view (`body.game-view`). URL: `?title=`.
 
 ```
 .game-page
-├── .game-page-bg          (ambient cover art + shade)
+├── .game-page-bg (fixed cover + shade + bottom fade)
 └── .game-page-shell
     ├── .game-back-link
-    └── .game-page-layout  (240px sidebar | main)
-        ├── .game-page-sidebar
-        │   ├── .game-page-cover-wrap.cover-crop-view
-        │   └── .game-page-actions
-        │       ├── .game-download-btn.btn
-        │       ├── .game-collection-split
-        │       └── .game-details-btn
-        └── .game-page-main  (frosted radial panel)
-            ├── .game-page-title
-            ├── .game-page-rating / .game-page-tags
-            ├── .game-page-desc
-            ├── .game-page-meta
-            ├── .game-section → .game-media-wrap
-            └── .game-section → .game-rec-wrap
+    └── .game-page-stage
+        ├── .game-page-skeleton (shimmer layout)
+        └── .game-page-content
+            └── .game-page-layout (240px sidebar | main)
+                ├── sidebar: cover, Download, collection split, More options
+                └── main: title, score, stars, tags, desc, meta grid,
+                          Media carousel, More like this carousel
 ```
 
 | Part | Notes |
 |------|-------|
-| Background | Cover art at 32% opacity, grayscale filter, horizontal scrim |
-| Title | Weight 300, `clamp(1.5rem, 2.1vw, 2.2rem)` — matches modal titles |
-| Meta labels | `.game-meta-label` — green uppercase micro-type |
-| Sections | `.game-section-title` — shared with browse |
-| Carousels | `.game-scroll-wrap` with prev/next pills and edge fade |
-| Loading | `.game-page-skeleton` shimmer → `.game-reveal-block` stagger |
+| Loading | `.game-page--loading` → skeleton; `.game-page--ready` fades content in |
+| Cover | `.game-page-cover-wrap.cover-crop-view` + sticky sidebar |
+| Score | `.game-page-score-badge` — same tier colors as tiles |
+| Meta | 4-column grid: Developer, Publisher, Release, Regions |
+| Carousels | `.game-scroll-wrap` with circular prev/next + edge fade masks |
+| Media lightbox | `#mediaLightbox` full-screen image viewer |
 
-Shell padding: `var(--page-y) var(--page-x) var(--page-bottom)`.
+**Actions:**
+
+- **Download** → `#downloadMod`
+- **Add to collection** / quick **+** → `#collectionMod` (auth required)
+- **More options** → opens download modal or context actions
 
 ---
 
 ## Overlay modals (`.overlay` / `.game-modal`)
 
-**Role**: Full-screen modal layer for download, collection, auth, and settings.
+Shared pattern for settings, auth, downloads, collections.
 
-### Shared shell
+| Variant | Classes | Use |
+|---------|---------|-----|
+| Full-bleed scroll | `.overlay` | Preferences `#setMod`, auth, collection |
+| Centered sheet | `.overlay.overlay--fit` | Download, package, account settings |
+| Ambient bg | `.game-modal--ambient` | Auth (no cover art; green gradient) |
+| Cover wash | `.game-modal-bg-img` + shade | Download, collection, package |
 
-| Class | Role |
-|-------|------|
-| `.overlay.show` | Fixed scrim, pointer events on |
-| `.game-modal` | Slide-in panel with optional ambient background |
-| `.game-modal-bg-*` | Cover art wash (download, collection) or `--ambient` gradient (auth) |
-| `.game-modal-page-shell` | Full-width outer shell (matches `.game-page-shell`); holds back button |
-| `.game-modal-body--narrow` | 760px content column, centered in outer shell |
-| `.game-modal-body--wide` | 980px content column, centered in outer shell |
-| `.game-back-link` | Shared back/close control — sits in outer shell, left-aligned at `--page-x` |
-| `.game-modal-header` | Eyebrow + title + subtitle |
-| `.game-modal-eyebrow` | Green uppercase micro-label |
-| `.game-modal-title` | Weight 300, same clamp as `.game-page-title` |
-| `.game-modal-sub` | Game name / context, `var(--text-muted)` |
-| `.game-modal-lead` | Section intro copy, `var(--text-body)` |
-| `.game-modal-panel` | Frosted bordered panel |
-| `.game-modal-footer` | Right-aligned actions |
-| `.game-modal-footer--split` | Space-between layout (New + Save) |
-| `.game-modal-footer-primary` | Primary CTA sizing in split footers |
+Shell structure:
 
-Shell padding: `var(--page-y) var(--page-x) var(--page-bottom)`.
+```
+.game-modal-page-shell
+├── .game-back-link
+└── .game-modal-body--narrow (760px) | --wide (980px)
+    ├── .game-modal-header (eyebrow, title, sub)
+    ├── .game-modal-section
+    │   └── .game-modal-panel (frosted bordered scroll area)
+    └── .game-modal-footer
+```
+
+Download/package modals use flex column + scrollable panel (`#downloadMod`, `#packageMod`).
 
 ---
 
-## Collection modal (`.collection-mod-shell`)
+## Download picker (`#downloadMod`)
 
-**Role**: Add/remove title from user collections. Opens from game details.
+| Part | Behavior |
+|------|----------|
+| List | `.dl-btn-row` per file: primary `.dl-btn` + optional `.dl-btn-side--torrent` (magnet) |
+| Tabs | When game + updates + DLC coexist: **Game | Updates | DLC** (`.tabs`) |
+| Display | `formatDownloadDisplay()` — parsed region, languages, version in `.dl-meta` |
+| Notice | `.download-notice` fixed bottom toast (success green / error red) |
+| Busy | `.busy` disables button + pulse animation |
 
-| View | ID | Content |
+Updates sorted newest-first via `orderPackageDownloads()`.
+
+---
+
+## Package picker (`#packageMod`)
+
+Same shell as download modal; used from add-on list cards. Copy varies by `activeAddonType` (DLC vs title updates). Lists filtered packages only.
+
+---
+
+## Collection modal (`#collectionMod`)
+
+| View | ID | Purpose |
 |------|-----|---------|
-| Pick | `#collection-mod-pick-view` | Checkbox list of collections + split footer |
-| Create | `#collection-mod-create-view` | Name + public toggle form |
+| Pick | `#collection-mod-pick-view` | Checkbox list of user collections |
+| Create | `#collection-mod-create-view` | Name + public toggle |
 | Empty | `#collection-mod-empty-view` | First-collection onboarding |
 
-### Collection-specific components
-
-| Class | Role |
-|-------|------|
-| `.collection-mod-row` | Selectable collection row (2px border, green when checked) |
-| `.collection-badge` | Public/private pill badge (shared with profile) |
-| `.collection-visibility-row` | Card-style public toggle in create form |
-| `.collection-mod-status` | Success/error banner |
-
-Uses `.game-modal-lead`, `.game-section-title`, `.game-modal-footer--split` — no duplicate lead/footer classes.
+Components: `.collection-mod-row`, `.collection-mod-badge` (public/private), split footer with New + Save.
 
 ---
 
-## Collection badge (`.collection-badge`)
+## Preferences (`#setMod`)
 
-Shared public/private visibility badge (modal + profile):
+Device-local settings (not account):
 
-- Pill shape (`var(--r-pill)`)
-- `.is-public`: `--badge-public-*` tokens
-- `.is-private`: muted gray on `var(--surface-raised)`
+| Option | Storage |
+|--------|---------|
+| Theme accent | `.swatches` / `.swatch` → `x_th` |
+| Default region | `#reg` dropdown → `x_r` |
+| IA cookie pool | `#ia-cookie-pool` textarea → `x_ia_cookie_pool` + bookmarklet link |
 
----
-
-## Search & form controls
-
-### Text input (`.inp`)
-
-- Background `var(--surface-raised)`, 2px border matching fill
-- Focus: darker fill, border `--green`
-- Radius `--r-md`, padding `8px 15px`
-- Large variant: `.collection-inp` (1rem, 14×18 padding)
-
-### Dropdown (`.ui-dropdown`)
-
-Custom dropdown controls. Variants: `.ui-dropdown--compact` (browse toolbar), `.ui-dropdown--block` (settings).
-
-Sort lives in browse toolbar `#sort`. Region in toolbar `#browseReg` (synced with settings `#reg`).
-
-### Checkbox (`.ui-check`)
-
-Shared checkbox with green fill when checked. Used in collection rows and visibility toggle.
-
-### Primary button (`.btn`)
-
-- Default: `var(--green)` fill
-- Ghost: `.btn-ghost` on `var(--surface-raised)`
-- `--r-md`, semibold, flex row with gap for icon+text
+Opened from account menu → Preferences. Region syncs with catalog filter drawer `#browseReg`.
 
 ---
 
-## Site preferences (`.game-modal` in `#setMod`)
+## Auth (`#authMod`)
 
-**Role**: Device-local site preferences — theme accent and default catalog region.
+Centered `.game-modal--ambient` with sign-in / sign-up pivots (`.auth-pivot`), email/password fields, perks list, `#auth-error` banner. Submit via `#auth-submit`.
 
-| Part | Classes |
-|------|---------|
-| Eyebrow / title | `Site` / `Preferences` |
-| Option rows | `.settings-option-row` with label, hint, and control |
-| Theme picker | `.swatches` / `.swatch` inside `.settings-options` |
-| Region filter | `.ui-dropdown--block` in `.settings-option-control--dropdown` |
-| Save | `.game-modal-footer-primary` — "Save preferences" |
+Legacy `.auth-blade` CSS remains in stylesheet but **is not used** in current markup.
 
-Theme colors defined in `THEME_COLORS` (`src/main.ts`). Stored in `localStorage` as `x_th` and `x_r`.
+---
+
+## Account settings (`#accountSettingsMod`)
+
+`.overlay--fit` wide layout:
+
+- Sidebar card: avatar, name, email
+- Form: gamertag, bio, gamerpic/banner upload, metro row fields
+- Uses `#accountSettingsMod` scoped compact spacing
+
+Opened from profile hub **Edit Profile** or account menu.
+
+---
+
+## Profile hub (`#profilePage`)
+
+**Role:** Public/private profile at `?profile=<gamertag>` (`body.profile-view`).
+
+```
+.profile-hub
+├── .profile-hub-banner (upload or accent fallback mesh)
+└── .profile-hub-shell
+    ├── .profile-identity-card (avatar overlaps banner, name, bio, actions)
+    ├── Account tiles (owner only)
+    ├── Collections grid (public visible to visitors)
+    └── Edit form (owner, toggled hidden)
+```
+
+| Component | Notes |
+|-----------|-------|
+| `.hub-tile` | Edit profile, copy link |
+| `.profile-collection-card` | Public/private badge, game thumbnails grid |
+| `.profile-collection-game` | Opens game page on click |
+| Not found | `#profile-not-found` for bad gamertag |
+
+---
+
+## Account menu (`.account-menu`)
+
+Dropdown from avatar trigger:
+
+- Profile summary (avatar, gamertag, email)
+- Open profile page
+- Preferences → `#setMod`
+- Sign out (red hover)
+
+Shares `.browse-filter-drawer-*` head/close styling.
+
+---
+
+## Form controls
+
+| Component | Classes |
+|-----------|---------|
+| Text input | `.inp` — 2px border, green focus |
+| Textarea | `.settings-text-input--area` — monospace for JSON |
+| Dropdown | `.ui-dropdown` + `--compact` / `--block`; custom menu with checkmark on selected |
+| Checkbox | `.ui-check` — green fill when checked |
+| Primary button | `.btn` — `--green` fill |
+| Ghost button | `.btn-ghost` — raised surface, green border on hover |
+
+Sort options: rating, name, release date (games); name / package count (DLC).
 
 ---
 
 ## Footer (`.footer`)
 
-- Top border `var(--border-subtle)`, top margin `80px`
-- Muted `var(--text-faint)` body; links `var(--text-muted)` → green hover
-- Hidden in `body.game-view`
+Top border, logo + links (About, DMCA). Muted `#666` body; link hover → `--green`. Hidden in `game-view`.
 
 ---
 
 ## Back to top (`#btt`)
 
-- Fixed FAB bottom-right
-- 50×50, `--green` fill, `14px` radius (squircle)
-- Hidden until scroll threshold (`.show`)
-- Hidden in `body.game-view` and `body.profile-view`
+Fixed bottom-right: dark `#1c1c1c` tile, green arrow icon, `12px` radius. `.show` after scroll threshold. Hidden in game/profile views.
 
 ---
 
-## Dimmer (`#dimmer`)
+## Legacy / unused in markup
 
-- Full-screen scrim layer, `z-index: 1000`, `var(--scrim-dimmer)`
-- Active when `body.dimmed` — dims page behind focused tile/shelf
-- Pair with elevated tile z-index for **spotlight focus**
+These classes remain in `src/styles.css` but are **not wired** to current UI:
+
+| Class | Was intended for |
+|-------|------------------|
+| `.blade`, `.blade.sm`, `.blade.lg` | Old centered blade modals |
+| `.browse-shelf` | Inline expand panel below grid |
+| `#dimmer`, `body.dimmed` | Page dim behind shelf focus |
+| `.m-l`, `.m-r`, `.m-head` | Old blade interior layout |
+
+Do not extend these without rewiring or removing dead CSS.
 
 ---
 
-## Legacy blade CSS (`.blade`)
+## Static pages
 
-Older blade modal styles remain in `src/styles.css` for reference but are **not wired** to the current game details flow. Title detail uses the full-page `.game-page` pattern instead.
-
----
-
-## Static content pages
-
-`public/about.html` and `public/dmca.html` use a **minimal prose layout** (860px column). They inherit dark bg `#101010` but not the full shell components.
+`public/about.html` and `public/dmca.html` — minimal 860px prose column, `#101010` background, Inter font. Outside the app shell.

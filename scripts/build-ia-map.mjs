@@ -78,6 +78,36 @@ function extractRedumpIaIdentifiers(markdown) {
   return [...ids];
 }
 
+function extractDlcIaIdentifiers(markdown) {
+  const ids = new Set();
+  const allMatches = markdown.matchAll(/https:\/\/archive\.org\/download\/([A-Za-z0-9%._-]+)/gi);
+  for (const match of allMatches) {
+    const raw = match[1];
+    if (!raw) continue;
+    const id = decodeURIComponent(raw);
+    if (!/^XBOX_360_DLC_\d+$/i.test(id)) continue;
+    ids.add(id);
+  }
+  return [...ids].sort((a, b) => {
+    const ai = Number.parseInt(a.match(/\d+$/)?.[0] ?? "0", 10);
+    const bi = Number.parseInt(b.match(/\d+$/)?.[0] ?? "0", 10);
+    return ai - bi;
+  });
+}
+
+function extractTitleUpdateIaIdentifiers(markdown) {
+  const ids = new Set();
+  const allMatches = markdown.matchAll(/https:\/\/archive\.org\/download\/([A-Za-z0-9%._-]+)/gi);
+  for (const match of allMatches) {
+    const raw = match[1];
+    if (!raw) continue;
+    const id = decodeURIComponent(raw);
+    if (!/^microsoft_xbox360_title-updates$/i.test(id)) continue;
+    ids.add(id);
+  }
+  return [...ids];
+}
+
 async function fetchJson(url, cookieHeader) {
   const response = await fetch(url, {
     headers: {
@@ -118,11 +148,17 @@ async function main() {
   }
 
   const source = await (await fetch(SOURCE_URL)).text();
-  let identifiers = extractRedumpIaIdentifiers(source);
+  const redumpIds = extractRedumpIaIdentifiers(source);
+  const dlcIds = extractDlcIaIdentifiers(source);
+  const titleUpdateIds = extractTitleUpdateIaIdentifiers(source);
+  let identifiers = [...redumpIds, ...dlcIds, ...titleUpdateIds];
   if (IDENTIFIER_LIMIT > 0) {
     identifiers = identifiers.slice(0, IDENTIFIER_LIMIT);
   }
   const map = {};
+  let redumpCount = 0;
+  let dlcCount = 0;
+  let updateCount = 0;
 
   for (const identifier of identifiers) {
     const metadataUrl = `https://archive.org/metadata/${encodeURIComponent(identifier)}?output=json`;
@@ -138,9 +174,12 @@ async function main() {
         if (FILTER_TO_MASTER && !targetFilenames.has(filename)) continue;
         if (map[filename]) continue;
         map[filename] = `https://archive.org/download/${encodeURIComponent(identifier)}/${encodePathSegment(filename)}`;
+        if (/^XBOX_360_DLC_\d+$/i.test(identifier)) dlcCount += 1;
+        else if (/^microsoft_xbox360_title-updates$/i.test(identifier)) updateCount += 1;
+        else redumpCount += 1;
       }
       // eslint-disable-next-line no-console
-      console.log(`Mapped from ${identifier}: ${Object.keys(map).length}`);
+      console.log(`Mapped from ${identifier}: ${Object.keys(map).length} total files`);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.warn(`Failed ${identifier}: ${error instanceof Error ? error.message : "unknown"}`);
@@ -149,7 +188,9 @@ async function main() {
 
   await writeFile(OUTPUT_PATH, `${JSON.stringify(map, null, 2)}\n`, "utf8");
   // eslint-disable-next-line no-console
-  console.log(`Wrote ${Object.keys(map).length} redump mappings to ${OUTPUT_PATH}`);
+  console.log(
+    `Wrote ${Object.keys(map).length} mappings (${redumpCount} redump, ${dlcCount} DLC, ${updateCount} title updates) to ${OUTPUT_PATH}`
+  );
 }
 
 main().catch((error) => {

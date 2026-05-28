@@ -1,0 +1,183 @@
+{
+  "generatedAt": "2026-05-28T21:45:30.694Z",
+  "orphanBuckets": 21,
+  "orphanFiles": 45,
+  "buckets": [
+    {
+      "name": "DmC",
+      "title_id": "DLC00010CBA",
+      "fileCount": 2,
+      "sampleFilenames": [
+        "DmC - Devil May Cry - Vergil's Downfall (World) (Addon).zip",
+        "DmC - Devil May Cry (World) (v1) (021BEF7B) (Title Update).zip"
+      ]
+    },
+    {
+      "name": "Game Room",
+      "title_id": "DLCAF976049",
+      "fileCount": 16,
+      "sampleFilenames": [
+        "Game Room - Game Pack 001 (World) (Addon).zip",
+        "Game Room - Game Pack 002 (World) (Addon).zip",
+        "Game Room - Game Pack 003 (World) (Addon).zip"
+      ]
+    },
+    {
+      "name": "Kinect Fun Labs",
+      "title_id": "DLC9D5082C1",
+      "fileCount": 6,
+      "sampleFilenames": [
+        "Kinect Fun Labs - Air Band (World) (Addon).zip",
+        "Kinect Fun Labs - Junk Fu (World) (Addon).zip",
+        "Kinect Fun Labs - Mutation Station (World) (Addon).zip"
+      ]
+    },
+    {
+      "name": "Photo Party Misc",
+      "title_id": "DLC83BB14F4",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Photo Party Misc (World) (Addon).zip"
+      ]
+    },
+    {
+      "name": "Bubble Head",
+      "title_id": "DLC8E4C1CF4",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Bubble Head (World) (v1).zip"
+      ]
+    },
+    {
+      "name": "Build a Buddy",
+      "title_id": "DLC4F528E55",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Build a Buddy (World) (v1).zip"
+      ]
+    },
+    {
+      "name": "College Hardball 2K8 (Japan, Europe)",
+      "title_id": "DLC8FF05107",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "College Hardball 2K8 (Japan, Europe) (v1).zip"
+      ]
+    },
+    {
+      "name": "DoDonPachi Saidaioujou (World) (Title Update)",
+      "title_id": "DLCB1C5FE7D",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "DoDonPachi Saidaioujou (World) (v1) (015DE1DF) (Title Update).zip"
+      ]
+    },
+    {
+      "name": "Facebook",
+      "title_id": "DLC217BFEE6",
+      "fileCount": 3,
+      "sampleFilenames": [
+        "Facebook (World) (v1).zip",
+        "Facebook (World) (v2).zip",
+        "Facebook (World) (v3).zip"
+      ]
+    },
+    {
+      "name": "Fairytale Fights",
+      "title_id": "DLCE1AAC268",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Fairytale Fights (USA, Europe) (v1).zip"
+      ]
+    },
+    {
+      "name": "Googly Eyes",
+      "title_id": "DLC6E0A5255",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Googly Eyes (World) (v1).zip"
+      ]
+    },
+    {
+      "name": "Kinect Me",
+      "title_id": "DLC78572D32",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Kinect Me (World) (v1).zip"
+      ]
+    },
+    {
+      "name": "Last.fm",
+      "title_id": "DLC6069AEFF",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Last.fm (World) (v1).zip"
+      ]
+    },
+    {
+      "name": "Magna Carta II",
+      "title_id": "DLC7EBE1939",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Magna Carta II (Europe) (v1).zip"
+      ]
+    },
+    {
+      "name": "Mamoru",
+      "title_id": "DLC88EF4B19",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Mamoru-kun (Japan) (v1).zip"
+      ]
+    },
+    {
+      "name": "MotoGP 13 (Europe) (Title Update)",
+      "title_id": "DLCE5F9F70D",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "MotoGP 13 (Europe) (v3) (2F188B5A) (Title Update).zip"
+      ]
+    },
+    {
+      "name": "MotoGP 2011",
+      "title_id": "DLC247F1758",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "MotoGP 2011 (World) (v1).zip"
+      ]
+    },
+    {
+      "name": "Motocross Madness (World) (Title Update)",
+      "title_id": "DLCDE35CE47",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Motocross Madness (World) (v6) (62541B78) (Title Update).zip"
+      ]
+    },
+    {
+      "name": "Real Fighters",
+      "title_id": "DLC40F33398",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Real Fighters (World) (v1).zip"
+      ]
+    },
+    {
+      "name": "Sky Player",
+      "title_id": "DLC71433700",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Sky Player (World) (v1).zip"
+      ]
+    },
+    {
+      "name": "Zune Preview",
+      "title_id": "DLC83EF53DA",
+      "fileCount": 2,
+      "sampleFilenames": [
+        "Zune Preview (World) (v3).zip",
+        "Zune Preview (World) (v5).zip"
+      ]
+    }
+  ]
+}

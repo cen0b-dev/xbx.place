@@ -11,10 +11,6 @@
     "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    },
     "types": ["vite/client", "node"]
   },
   "include": ["src/**/*.ts", "vite.config.ts"]

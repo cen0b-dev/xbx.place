@@ -1,3 +1,5 @@
+import { formatUpdateVersion } from "./update-version";
+
 export type DownloadDisplay = {
   title: string;
   meta: string | null;
@@ -7,6 +9,8 @@ const EXT_RE = /\.(zip|iso|7z)$/i;
 const BRACKET_RE = /\[.*?\]/gi;
 const REGION_RE = /\((USA|Europe(?:[^)]*)?|Japan|World|Australia(?:[^)]*)?|Region Free)\)/i;
 const LANG_RE = /\(([A-Za-z]{2}(?:,[A-Za-z]{2})+)\)/;
+const UPDATE_VERSION_RE = /\(v\d+(?:\.\d+)?(?:\s+\d+)?[a-z]?\)/gi;
+const UPDATE_ALT_RE = /\((Alt(?:\s+\d+)?|UK)\)/gi;
 
 function normalizeRegion(raw: string): string {
   const value = raw.trim();
@@ -43,16 +47,20 @@ function parseLanguages(filename: string): string | null {
 export function formatDownloadDisplay(raw: string): DownloadDisplay {
   const region = parseRegion(raw);
   const languages = parseLanguages(raw);
+  const updateVersion = formatUpdateVersion(raw);
   const title = raw
     .replace(EXT_RE, "")
     .replace(BRACKET_RE, "")
     .replace(REGION_RE, "")
     .replace(LANG_RE, "")
+    .replace(UPDATE_VERSION_RE, "")
+    .replace(UPDATE_ALT_RE, "")
     .replace(/\(Addon\)|\(DLC\)|\(Update\)/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 
   const metaParts: string[] = [];
+  if (updateVersion) metaParts.push(updateVersion);
   if (region) metaParts.push(region);
   if (languages) metaParts.push(languages);
 

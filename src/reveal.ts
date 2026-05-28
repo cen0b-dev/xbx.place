@@ -6,7 +6,7 @@ function ensureObserver(): IntersectionObserver | null {
   if (observer) return observer;
 
   reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  observer = new IntersectionObserver(
+    observer = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
@@ -14,7 +14,7 @@ function ensureObserver(): IntersectionObserver | null {
         observer?.unobserve(entry.target);
       }
     },
-    { rootMargin: "0px 0px -4% 0px", threshold: 0.06 }
+    { rootMargin: "15% 0px 15% 0px", threshold: 0.01 }
   );
   return observer;
 }

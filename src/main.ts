@@ -10,11 +10,12 @@ import {
   syncHeaderAccountPlacement,
   syncProfileRouteFromUrl
 } from "./auth-ui";
-import { bindCollectionUi, closeCollectionModal, setActiveGameForCollections } from "./collections-ui";
+import { bindCollectionUi, closeCollectionModal, setActiveGameForCollections, syncGameCollectionButton } from "./collections-ui";
+import { bindCroppedCover, preloadCroppedCover } from "./cover-crop";
 import { bgUrl, coverUrl, loadTitles, syncGameModalBackground } from "./data";
 import { formatDownloadDisplay } from "./download-label";
 import { startMinervaTorrentDownload } from "./minerva-torrent";
-import { formatDownloadNotice, startDownload } from "./downloads";
+import { formatDownloadProgress, requestDownload } from "./downloads";
 import {
   buildIaBookmarklet,
   getIaCookiePool,
@@ -24,16 +25,32 @@ import {
 } from "./ia-cookie";
 import { galleryImageUrl } from "./gallery-image";
 import {
+  ADDON_TYPE_FILTERS,
+  addonPackageSummary,
+  addonTypeLabel,
+  countAddonDownloads,
+  isAddonTypeSlug,
+  matchesAddonTypeFilter,
+  readAddonTypeFromUrl,
+  syncAddonTypeToUrl,
+  titleHasAddonType,
+  type AddonTypeSlug
+} from "./addon-browse";
+import {
+  ADDON_SORT_OPTIONS,
   bindFormControlGlobals,
   dropdownMarkup,
   getDropdownValue,
   initFormControls,
   mountDropdown,
   REGION_OPTIONS,
+  replaceDropdownOptions,
   setDropdownValue,
   SORT_OPTIONS
 } from "./form-controls";
-import { createGridCard, createHeroCard, stars } from "./browse-card";
+import { communityScoreBadgeHtml, createAddonListCard, createGridCard, createHeroCard, stars } from "./browse-card";
+import { pickHeroVisualTitles } from "./featured-titles";
+import { orderPackageDownloads } from "./update-version";
 import {
   GENRE_FILTERS,
   genreLabel,
@@ -41,7 +58,7 @@ import {
   readGenreFromUrl,
   syncGenreToUrl
 } from "./genres";
-import { observeRevealChildren, observeRevealFirstRow } from "./reveal";
+import { observeReveal, observeRevealChildren, observeRevealFirstRow } from "./reveal";
 import type { DownloadEntry, TitleEntry } from "./types";
 
 type Category = "Game" | "DLC";
@@ -58,17 +75,25 @@ const DEFAULT_DESCRIPTION =
   "Browse Xbox 360 games, updates, and DLC in one fast catalog with title details, artwork, and downloadable archives.";
 const BASE_URL = import.meta.env.BASE_URL;
 
+/** Cloudflare Worker auth gate (or override via VITE_DOWNLOAD_PROXY_ORIGIN). Resolves URLs; does not proxy ROM bytes. */
+function downloadProxyBase(): string | null {
+  const fromEnv = (import.meta.env.VITE_DOWNLOAD_PROXY_ORIGIN as string | undefined)?.trim();
+  if (!fromEnv) return null;
+  return fromEnv.replace(/\/+$/, "");
+}
+
 const root = document.querySelector<HTMLDivElement>("#app");
 
 let db: TitleEntry[] = [];
 let filtered: TitleEntry[] = [];
-let currentPage = 1;
+let loadedCount = 0;
+let isLoadingMore = false;
+let gridObserver: IntersectionObserver | null = null;
 let category: Category = "Game";
 let activeGenre: string | null = null;
-let activeTile: HTMLElement | null = null;
-let shelfEl: HTMLElement | null = null;
+let activeAddonType: AddonTypeSlug = "all";
 let activeGame: TitleEntry | null = null;
-const PAGE_SIZE = 50;
+const ROWS_PER_BATCH = 5;
 const settings: Settings = {
   th: window.localStorage.getItem("x_th") ?? "#107C10",
   r: window.localStorage.getItem("x_r") ?? "all"
@@ -88,28 +113,17 @@ function getGridColumnCount(grid: HTMLElement): number {
   return Math.max(1, Math.floor((width + gap) / (minCol + gap)));
 }
 
-function pageStartIndices(total: number, cols: number): number[] {
-  if (total <= 0) return [0];
-  const starts = [0];
-  let index = 0;
-  const chunk = Math.max(cols, Math.floor(PAGE_SIZE / cols) * cols);
-  while (total - index > PAGE_SIZE) {
-    index += chunk;
-    starts.push(index);
-  }
-  return starts;
+function batchSize(grid: HTMLElement): number {
+  if (category === "DLC") return 40;
+  return Math.max(1, getGridColumnCount(grid) * ROWS_PER_BATCH);
 }
 
-function pageCountForGrid(grid: HTMLElement): number {
-  return Math.max(1, pageStartIndices(filtered.length, getGridColumnCount(grid)).length);
+function catalogCardSelector(): string {
+  return category === "DLC" ? ".addon-list-card" : ".browse-card";
 }
 
-function pageBounds(page: number, grid: HTMLElement): { start: number; end: number } {
-  const starts = pageStartIndices(filtered.length, getGridColumnCount(grid));
-  const index = Math.min(Math.max(1, page), starts.length) - 1;
-  const start = starts[index] ?? 0;
-  const end = index + 1 < starts.length ? (starts[index + 1] ?? filtered.length) : filtered.length;
-  return { start, end };
+function syncCatalogGridLayout(): void {
+  document.getElementById("grid")?.classList.toggle("browse-grid--addons", category === "DLC");
 }
 
 function stickyHeaderOffset(): number {
@@ -127,18 +141,30 @@ function scrollBelowHeader(element: HTMLElement | null): void {
   window.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
 }
 
-function handleDownload(sourceUrl: string, filename: string, button?: HTMLButtonElement): void {
+function proxiedUrl(download: DownloadEntry): string | null {
+  const base = downloadProxyBase();
+  if (!base) return null;
+  return `${base}/download?key=${encodeURIComponent(download.filename)}`;
+}
+
+async function handleDownload(target: string, filename: string, button?: HTMLButtonElement): Promise<void> {
   if (button) {
     button.disabled = true;
     button.classList.add("busy");
   }
   try {
-    const result = startDownload(sourceUrl, filename);
-    if (!result.ok) {
-      showDownloadNotice(result.error, true);
+    const result = await requestDownload(target, filename, (progress) => {
+      showDownloadNotice(formatDownloadProgress(progress), false);
+    });
+    if (result.status === "auth_required") {
+      openAuthModal("You have already used your one guest download. Sign in or create a free account to download more files.");
       return;
     }
-    showDownloadNotice(formatDownloadNotice(), false);
+    if (result.status === "blocked") {
+      showDownloadNotice(result.message, true);
+      return;
+    }
+    showDownloadNotice(formatDownloadProgress({ loaded: 0, total: 0 }), false);
   } finally {
     if (button) {
       button.disabled = false;
@@ -171,7 +197,34 @@ async function handleTorrentDownload(
 }
 
 function downloadTypeLabel(dl: DownloadEntry): string {
+  if (dl.type === "Update") return "UPDATE";
+  if (dl.type === "DLC") return "ADD-ON";
   return (dl.type ?? "Game").toUpperCase();
+}
+
+function packageModalCopy(): { eyebrow: string; title: string; section: string; empty: string } {
+  if (activeAddonType === "update") {
+    return {
+      eyebrow: "Title update",
+      title: "Choose an update",
+      section: "Available updates",
+      empty: "No title updates available for this game."
+    };
+  }
+  if (activeAddonType === "dlc") {
+    return {
+      eyebrow: "DLC & add-on",
+      title: "Choose a package",
+      section: "Available DLC",
+      empty: "No DLC packs available for this game."
+    };
+  }
+  return {
+    eyebrow: "Packages",
+    title: "Choose a file",
+    section: "Available packages",
+    empty: "No downloadable packages available for this game."
+  };
 }
 
 let downloadNoticeTimer = 0;
@@ -196,10 +249,6 @@ function gameBackgroundUrl(entry: TitleEntry): string {
   return bgUrl(entry.title_id);
 }
 
-function iconUrl(entry: TitleEntry): string {
-  return `https://raw.githubusercontent.com/xenia-manager/x360db/refs/heads/main/titles/${entry.title_id}/artwork/icon.png`;
-}
-
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -211,11 +260,39 @@ function escapeHtml(value: string): string {
 function renderSkeletonTiles(): void {
   const grid = document.getElementById("grid");
   if (!grid) return;
+  syncCatalogGridLayout();
+  if (category === "DLC") {
+    grid.innerHTML = Array.from(
+      { length: 12 },
+      () => '<div class="skel-addon-row" aria-hidden="true"></div>'
+    ).join("");
+    return;
+  }
   let html = "";
   for (let i = 0; i < 20; i += 1) {
-    html += '<div class="browse-card is-loading skeleton"><div class="browse-card-ov"></div></div>';
+    html += '<div class="browse-card is-loading skeleton"><div class="browse-card-media cover-crop-view"></div><div class="browse-card-ov"></div></div>';
   }
   grid.innerHTML = html;
+}
+
+function formatReleaseDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return iso;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+function gameBackLabel(): string {
+  const query = (document.getElementById("q") as HTMLInputElement | null)?.value.trim() ?? "";
+  if (query) return "Back to Search Results";
+  if (activeGenre) return `Back to ${genreLabel(activeGenre)}`;
+  return "Back to Browse";
+}
+
+function syncGameBackLabel(): void {
+  const label = document.getElementById("game-back-label");
+  if (label) label.textContent = gameBackLabel();
 }
 
 function preloadImage(src: string): Promise<void> {
@@ -239,8 +316,13 @@ function gamePageSkeletonMarkup(): string {
         </div>
       </aside>
       <main class="game-page-main">
-        <div class="skel-line skel-line--title"></div>
-        <div class="skel-line skel-line--short"></div>
+        <div class="game-page-head">
+          <div class="skel-line skel-line--title"></div>
+        </div>
+        <div class="game-page-rating game-page-rating--skel">
+          <div class="skel-line skel-line--score"></div>
+          <div class="skel-line skel-line--short"></div>
+        </div>
         <div class="skel-tags">
           <div class="skel-tag"></div>
           <div class="skel-tag"></div>
@@ -280,7 +362,6 @@ function renderShell(): void {
   const aboutHref = `${BASE_URL}about.html`;
   const dmcaHref = `${BASE_URL}dmca.html`;
   root.innerHTML = `
-    <div id="dimmer"></div>
     <div id="btt"><i class="fa-solid fa-arrow-up"></i></div>
     <header class="header">
       <div class="top-bar">
@@ -330,12 +411,9 @@ function renderShell(): void {
                 <span class="site-hero-stat" id="siteHeroAddons"><strong>—</strong> add-ons</span>
               </div>
               <div class="site-hero-actions">
-                <button class="btn site-hero-cta" id="siteHeroBrowse" type="button">
+                <a class="btn site-hero-cta" id="siteHeroBrowse" href="#catalogSection">
                   <i class="fa-solid fa-compact-disc" aria-hidden="true"></i><span>Browse catalog</span>
-                </button>
-                <button class="btn btn-ghost site-hero-ghost" id="siteHeroSearch" type="button">
-                  <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search titles</span>
-                </button>
+                </a>
               </div>
             </div>
             <div class="site-hero-visual" aria-hidden="true">
@@ -344,23 +422,47 @@ function renderShell(): void {
           </div>
         </section>
         <div class="browse-discovery">
-        <section class="browse-section browse-section--featured browse-section--rail" id="featuredSection">
+        <section class="browse-section browse-section--featured browse-section--rail games-only" id="featuredSection">
           <div class="browse-section-head">
-            <h2 class="game-section-title" id="featuredTitle">Top Rated</h2>
+            <div class="browse-section-title-block">
+              <h2 class="game-section-title" id="featuredTitle">Top Rated</h2>
+              <p class="browse-section-sub" id="featuredSubtitle">Ranked by community score</p>
+            </div>
           </div>
           <div class="browse-hero-grid" id="hGrid"></div>
         </section>
-        <section class="browse-section browse-section--genres browse-section--rail games-only" id="genreSection">
+        <section class="browse-section browse-section--genres games-only" id="genreSection">
           <div class="browse-section-head">
             <h2 class="game-section-title">Browse by Genre</h2>
-            <span id="genreCount" class="browse-count"></span>
           </div>
-          <div class="genre-grid" id="genreRail" role="listbox" aria-label="Browse by genre"></div>
+          <div class="genre-rail-scroll" id="genreRailScroll">
+            <div class="genre-grid genre-grid--rail" id="genreRail" role="listbox" aria-label="Browse by genre"></div>
+          </div>
+        </section>
+        <section class="browse-section browse-section--genres dlc-only hidden" id="addonTypeSection">
+          <div class="browse-section-head">
+            <div class="browse-section-title-block">
+              <h2 class="game-section-title">Package Type</h2>
+              <p class="browse-section-sub">Find DLC packs or title updates for your games</p>
+            </div>
+          </div>
+          <div class="genre-rail-scroll" id="addonTypeRailScroll">
+            <div class="genre-grid genre-grid--rail" id="addonTypeRail" role="listbox" aria-label="Filter by package type"></div>
+          </div>
         </section>
         </div>
         <section class="browse-section browse-section--catalog" id="catalogSection">
           <div class="browse-section-head">
-            <h2 class="game-section-title" id="lTitle">All Games</h2>
+            <div class="browse-section-title-group">
+              <h2 class="game-section-title" id="lTitle">All Games</h2>
+              <span class="browse-score-info-wrap games-only">
+                <button type="button" class="browse-score-info" aria-describedby="scoreInfoTip">
+                  <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                  <span>Community score</span>
+                </button>
+                <span id="scoreInfoTip" class="browse-score-tip" role="tooltip">Community ratings on a 0–100 scale, converted from 5-star scores.</span>
+              </span>
+            </div>
             <div class="browse-section-actions">
               <span id="cnt" class="browse-count"></span>
               <div class="browse-filter-drawer-host">
@@ -372,23 +474,22 @@ function renderShell(): void {
                   aria-controls="browseFilterDrawer"
                 >
                   <i class="fa-solid fa-sliders" aria-hidden="true"></i>
-                  <span>Filters</span>
-                  <span class="browse-filter-badge hidden" id="browseFilterBadge" aria-hidden="true"></span>
+                  <span id="browseFilterLabel">Filters</span>
                 </button>
-                <div class="browse-filter-drawer hidden" id="browseFilterDrawer" role="dialog" aria-label="Catalog filters">
+                <div class="browse-filter-drawer hidden" id="browseFilterDrawer" role="dialog" aria-label="Browse filters">
                   <div class="browse-filter-drawer-head">
-                    <h3 class="browse-filter-drawer-title">Catalog filters</h3>
+                    <h3 class="browse-filter-drawer-title" id="browseFilterDrawerTitle">Catalog filters</h3>
                     <button type="button" class="browse-filter-drawer-close" id="browseFilterClose" aria-label="Close filters">
                       <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                     </button>
                   </div>
                   <div class="browse-filter-drawer-body">
                     <div class="browse-filter-drawer-field">
-                      <span class="browse-toolbar-label">Sort catalog</span>
+                      <span class="browse-toolbar-label" id="browseSortLabel">Sort catalog</span>
                       ${dropdownMarkup("sort", SORT_OPTIONS, "rating", "ui-dropdown--block")}
                     </div>
                     <div class="browse-filter-drawer-field">
-                      <span class="browse-toolbar-label">Region</span>
+                      <span class="browse-toolbar-label" id="browseRegionLabel">Region</span>
                       ${dropdownMarkup("browseReg", REGION_OPTIONS, settings.r, "ui-dropdown--block")}
                     </div>
                   </div>
@@ -401,16 +502,8 @@ function renderShell(): void {
           </div>
           <div class="browse-filter-bar hidden" id="browseFilterBar" aria-live="polite"></div>
           <div class="browse-grid" id="grid"></div>
+          <div id="gridSentinel" class="browse-grid-sentinel" aria-hidden="true"></div>
           <div id="pager" class="browse-pager"></div>
-          <div id="dlcShelf" class="browse-shelf">
-            <div class="browse-shelf-head">
-              <div id="sTitle" class="browse-shelf-title"></div>
-              <button id="close-shelf" class="browse-shelf-close" type="button" aria-label="Close addons shelf">
-                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-              </button>
-            </div>
-            <div id="sGrid" class="browse-shelf-grid"></div>
-          </div>
         </section>
       </div>
     </div>
@@ -478,7 +571,7 @@ function renderShell(): void {
       </div>
       <div class="game-page-shell">
         <button class="game-back-link" id="close-game-page" type="button">
-          <i class="fa-solid fa-chevron-left" aria-hidden="true"></i><span>Back</span>
+          <i class="fa-solid fa-chevron-left" aria-hidden="true"></i><span id="game-back-label">Back to Browse</span>
         </button>
         <div class="game-page-stage">
           <div class="game-page-skeleton" id="gp-skeleton" aria-hidden="true">${gamePageSkeletonMarkup()}</div>
@@ -494,21 +587,25 @@ function renderShell(): void {
                   </button>
                   <div class="game-collection-split">
                     <button class="game-collection-main" id="gp-collection-btn" type="button">
-                      <span>Add to collection</span>
+                      <i class="fa-solid fa-bookmark" aria-hidden="true"></i><span>Add to collection</span>
                     </button>
-                    <button class="game-collection-save" id="gp-collection-save-btn" type="button" aria-label="Save to collection">
-                      <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+                    <button class="game-collection-save" id="gp-collection-save-btn" type="button" aria-label="Quick add to collection">
+                      <i class="fa-solid fa-plus" aria-hidden="true"></i>
                     </button>
                   </div>
-                  <button class="game-details-btn" id="gp-details-btn" type="button" aria-label="More game options">
-                    <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>
+                  <button class="game-details-btn" id="gp-details-btn" type="button" title="More options">
+                    <i class="fa-solid fa-ellipsis" aria-hidden="true"></i><span>More options</span>
                   </button>
                 </div>
               </aside>
               <main class="game-page-main">
-                <h1 id="gp-title" class="game-page-title game-reveal-block"></h1>
+                <div class="game-page-head game-reveal-block">
+                  <h1 id="gp-title" class="game-page-title"></h1>
+                </div>
                 <div class="game-page-rating game-reveal-block">
-                  <div id="gp-rate"></div>
+                  <div id="gp-score" class="game-page-score" aria-label="Community score"></div>
+                  <div id="gp-rate" class="game-page-stars"></div>
+                  <span class="game-page-year-sep" aria-hidden="true">·</span>
                   <span id="gp-yr" class="game-page-year"></span>
                 </div>
                 <div id="gp-tags" class="game-page-tags game-reveal-block"></div>
@@ -545,7 +642,7 @@ function renderShell(): void {
         </div>
       </div>
     </div>
-    <div class="overlay" id="downloadMod">
+    <div class="overlay overlay--fit" id="downloadMod">
       <div class="game-modal">
         <div class="game-modal-bg" aria-hidden="true">
           <img class="game-modal-bg-img" alt="" />
@@ -565,6 +662,32 @@ function renderShell(): void {
             <h3 class="game-section-title">Available files</h3>
             <div class="game-modal-panel">
               <div id="dl-l" class="game-modal-list"></div>
+            </div>
+          </section>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="overlay overlay--fit" id="packageMod">
+      <div class="game-modal">
+        <div class="game-modal-bg" aria-hidden="true">
+          <img class="game-modal-bg-img" alt="" />
+          <div class="game-modal-bg-shade"></div>
+        </div>
+        <div class="game-modal-page-shell">
+          <button class="game-back-link" id="close-package-mod" type="button" aria-label="Close packages">
+            <i class="fa-solid fa-chevron-left" aria-hidden="true"></i><span>Back</span>
+          </button>
+          <div class="game-modal-body game-modal-body--narrow">
+          <header class="game-modal-header">
+            <div class="game-modal-eyebrow" id="package-mod-eyebrow">Packages</div>
+            <h2 class="game-modal-title" id="package-mod-title">Choose a file</h2>
+            <p id="package-mod-subtitle" class="game-modal-sub"></p>
+          </header>
+          <section class="game-modal-section">
+            <h3 class="game-section-title" id="package-mod-section-title">Available packages</h3>
+            <div class="game-modal-panel">
+              <div id="package-l" class="game-modal-list"></div>
             </div>
           </section>
           </div>
@@ -626,6 +749,21 @@ function renderShell(): void {
         </div>
       </div>
     </div>
+    <div class="overlay" id="mediaLightbox" aria-hidden="true">
+      <div class="game-media-lightbox" role="dialog" aria-modal="true" aria-label="Screenshot viewer">
+        <button class="game-media-lightbox-close" id="close-media-lightbox" type="button" aria-label="Close screenshot viewer">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+        <button class="game-media-lightbox-nav game-media-lightbox-prev" id="media-lightbox-prev" type="button" aria-label="Previous screenshot">
+          <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+        </button>
+        <img id="media-lightbox-img" class="game-media-lightbox-img" alt="" />
+        <button class="game-media-lightbox-nav game-media-lightbox-next" id="media-lightbox-next" type="button" aria-label="Next screenshot">
+          <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+        </button>
+        <div id="media-lightbox-caption" class="game-media-lightbox-caption"></div>
+      </div>
+    </div>
     ${authModalMarkup()}
     <footer class="footer">
       <div>
@@ -644,6 +782,7 @@ function renderShell(): void {
 
 function closeGamePage(push = true): void {
   closeDownloadModal();
+  closePackageModal();
   closeCollectionModal();
   activeGame = null;
   setActiveGameForCollections(null);
@@ -664,6 +803,10 @@ function closeDownloadModal(): void {
   document.getElementById("downloadMod")?.classList.remove("show");
 }
 
+function closePackageModal(): void {
+  document.getElementById("packageMod")?.classList.remove("show");
+}
+
 function openDownloadModal(): void {
   if (!activeGame) return;
   const subtitle = document.getElementById("download-mod-subtitle");
@@ -673,19 +816,39 @@ function openDownloadModal(): void {
   document.getElementById("downloadMod")?.classList.add("show");
 }
 
-function renderDownloadList(game: TitleEntry): void {
-  const dlList = document.getElementById("dl-l");
-  if (!dlList) return;
+function openPackageModal(game: TitleEntry): void {
+  const copy = packageModalCopy();
+  const subtitle = document.getElementById("package-mod-subtitle");
+  const eyebrow = document.getElementById("package-mod-eyebrow");
+  const title = document.getElementById("package-mod-title");
+  const sectionTitle = document.getElementById("package-mod-section-title");
+  const packageCount = game.downloads.filter((dl) => matchesAddonTypeFilter(dl, activeAddonType) && dl.url).length;
+  if (subtitle) subtitle.textContent = game.name;
+  if (eyebrow) eyebrow.textContent = copy.eyebrow;
+  if (title) title.textContent = copy.title;
+  if (sectionTitle) {
+    sectionTitle.textContent =
+      packageCount > 0 ? `${copy.section} (${packageCount.toLocaleString()})` : copy.section;
+  }
+  syncGameModalBackground("packageMod", game);
+  renderPackageList(game);
+  document.getElementById("packageMod")?.classList.add("show");
+}
 
-  dlList.innerHTML = "";
-  const downloads = game.downloads ?? [];
-  if (!downloads.length) {
-    dlList.innerHTML = '<div class="download-empty">No downloads available for this title.</div>';
+function renderDownloadEntries(
+  listEl: HTMLElement,
+  downloads: DownloadEntry[],
+  emptyMessage: string
+): void {
+  listEl.innerHTML = "";
+  const items = downloads.filter((dl) => dl.url);
+  if (!items.length) {
+    listEl.innerHTML = `<div class="download-empty">${emptyMessage}</div>`;
     return;
   }
 
-  for (const dl of downloads) {
-    if (!dl.url) continue;
+  for (const dl of items) {
+    const target = proxiedUrl(dl);
     const display = formatDownloadDisplay(dl.label ?? dl.filename);
     const meta = display.meta ? `<div class="dl-meta">${display.meta}</div>` : "";
     const row = document.createElement("div");
@@ -693,11 +856,13 @@ function renderDownloadList(game: TitleEntry): void {
 
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "dl-btn";
+    button.className = target ? "dl-btn" : "dl-btn dis";
     button.innerHTML = `<div><div class="dl-type">${downloadTypeLabel(dl)}</div><b>${display.title}</b>${meta}</div><span><i class="fa-solid fa-download"></i></span>`;
-    button.addEventListener("click", (event) => {
-      handleDownload(dl.url, dl.filename, event.currentTarget as HTMLButtonElement);
-    });
+    if (target) {
+      button.addEventListener("click", (event) => {
+        void handleDownload(target, dl.filename, event.currentTarget as HTMLButtonElement);
+      });
+    }
 
     row.append(button);
     if (dl.fastUrl) {
@@ -711,8 +876,80 @@ function renderDownloadList(game: TitleEntry): void {
       });
       row.append(torrentBtn);
     }
-    dlList.appendChild(row);
+    listEl.appendChild(row);
   }
+}
+
+function renderDownloadList(game: TitleEntry): void {
+  const dlList = document.getElementById("dl-l");
+  if (!dlList) return;
+
+  const items = (game.downloads ?? []).filter((dl) => dl.url);
+  if (!items.length) {
+    dlList.innerHTML = `<div class="download-empty">No downloads available for this title.</div>`;
+    return;
+  }
+
+  const games = items.filter((dl) => dl.type === "Game" || !dl.type || dl.type === "ROM");
+  const dlcs = items.filter((dl) => dl.type === "DLC");
+  const updates = items.filter((dl) => dl.type === "Update");
+
+  // If there are no DLCs or Updates, just render the list normally
+  if (!dlcs.length && !updates.length) {
+    renderDownloadEntries(dlList, games, "No downloads available for this title.");
+    return;
+  }
+
+  dlList.innerHTML = "";
+
+  const tabsContainer = document.createElement("div");
+  tabsContainer.className = "tabs";
+  tabsContainer.style.padding = "0";
+  tabsContainer.style.marginTop = "0";
+  tabsContainer.style.marginBottom = "16px";
+
+  const contentContainer = document.createElement("div");
+
+  const tabs: { label: string; items: DownloadEntry[]; empty: string }[] = [];
+  if (games.length) tabs.push({ label: "Game", items: games, empty: "No game downloads available." });
+  if (updates.length) tabs.push({ label: "Updates", items: orderPackageDownloads(updates, true), empty: "No updates available." });
+  if (dlcs.length) tabs.push({ label: "DLC", items: orderPackageDownloads(dlcs, false), empty: "No DLC available." });
+
+  tabs.forEach((tab, index) => {
+    const tabEl = document.createElement("div");
+    tabEl.className = `tab ${index === 0 ? "active" : ""}`;
+    tabEl.textContent = tab.label;
+    tabsContainer.appendChild(tabEl);
+
+    const contentEl = document.createElement("div");
+    contentEl.className = `tab-c ${index === 0 ? "active" : ""}`;
+    contentEl.style.padding = "0";
+    
+    const listContainer = document.createElement("div");
+    listContainer.className = "game-modal-list";
+    renderDownloadEntries(listContainer, tab.items, tab.empty);
+    contentEl.appendChild(listContainer);
+    
+    contentContainer.appendChild(contentEl);
+
+    tabEl.addEventListener("click", () => {
+      Array.from(tabsContainer.children).forEach(c => c.classList.remove("active"));
+      Array.from(contentContainer.children).forEach(c => c.classList.remove("active"));
+      tabEl.classList.add("active");
+      contentEl.classList.add("active");
+    });
+  });
+
+  dlList.appendChild(tabsContainer);
+  dlList.appendChild(contentContainer);
+}
+
+function renderPackageList(game: TitleEntry): void {
+  const list = document.getElementById("package-l");
+  if (!list) return;
+  const downloads = game.downloads.filter((dl) => matchesAddonTypeFilter(dl, activeAddonType));
+  const ordered = orderPackageDownloads(downloads, activeAddonType === "update" || activeAddonType === "all");
+  renderDownloadEntries(list, ordered, packageModalCopy().empty);
 }
 
 function updateDownloadButton(game: TitleEntry): void {
@@ -727,12 +964,12 @@ function renderGameTags(container: HTMLElement, game: TitleEntry): void {
   container.innerHTML = "";
   const platform = document.createElement("span");
   platform.className = "game-tag game-tag--platform";
-  platform.textContent = "Xbox 360";
+  platform.innerHTML = '<i class="fa-brands fa-xbox" aria-hidden="true"></i> Xbox 360';
   container.appendChild(platform);
   for (const genre of (game.genre ?? []).slice(0, 4)) {
     const tag = document.createElement("span");
-    tag.className = "game-tag";
-    tag.textContent = genre.toUpperCase();
+    tag.className = "game-tag game-tag--genre";
+    tag.textContent = genre;
     container.appendChild(tag);
   }
 }
@@ -745,12 +982,13 @@ function bindHorizontalScroll(container: HTMLElement, selector: string): void {
   if (!wrap || !track || !next) return;
 
   const syncScrollFades = (): void => {
+    const itemCount = track.children.length;
     const overflow = track.scrollWidth > track.clientWidth + 4;
     const atStart = track.scrollLeft <= 4;
     const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
-    wrap.classList.toggle("has-overflow", overflow);
-    wrap.classList.toggle("can-scroll-left", overflow && !atStart);
-    wrap.classList.toggle("can-scroll-right", overflow && !atEnd);
+    wrap.classList.toggle("has-overflow", overflow || itemCount > 1);
+    wrap.classList.toggle("can-scroll-left", itemCount > 1 && !atStart);
+    wrap.classList.toggle("can-scroll-right", itemCount > 1 && !atEnd);
   };
 
   const scrollStep = (): number => Math.max(280, track.clientWidth * 0.75);
@@ -764,6 +1002,34 @@ function bindHorizontalScroll(container: HTMLElement, selector: string): void {
   track.addEventListener("scroll", syncScrollFades, { passive: true });
   window.addEventListener("resize", syncScrollFades);
   syncScrollFades();
+}
+
+let mediaLightboxImages: string[] = [];
+let mediaLightboxIndex = 0;
+
+function syncMediaLightbox(): void {
+  const img = document.getElementById("media-lightbox-img") as HTMLImageElement | null;
+  const caption = document.getElementById("media-lightbox-caption");
+  const prev = document.getElementById("media-lightbox-prev");
+  const next = document.getElementById("media-lightbox-next");
+  const src = mediaLightboxImages[mediaLightboxIndex];
+  if (!img || !src) return;
+  img.src = src;
+  img.alt = `Screenshot ${mediaLightboxIndex + 1} of ${mediaLightboxImages.length}`;
+  if (caption) caption.textContent = `${mediaLightboxIndex + 1} / ${mediaLightboxImages.length}`;
+  prev?.classList.toggle("hidden", mediaLightboxImages.length <= 1);
+  next?.classList.toggle("hidden", mediaLightboxImages.length <= 1);
+}
+
+function openMediaLightbox(images: string[], index: number): void {
+  mediaLightboxImages = images;
+  mediaLightboxIndex = index;
+  syncMediaLightbox();
+  document.getElementById("mediaLightbox")?.classList.add("show");
+}
+
+function closeMediaLightbox(): void {
+  document.getElementById("mediaLightbox")?.classList.remove("show");
 }
 
 function renderMediaStrip(container: HTMLElement, images: string[]): void {
@@ -797,16 +1063,22 @@ function renderMediaStrip(container: HTMLElement, images: string[]): void {
   });
 
   images.forEach((src, index) => {
+    const proxied = galleryImageUrl(src);
     const button = document.createElement("button");
     button.type = "button";
     button.className = "game-media-card";
+    button.setAttribute("aria-label", `View screenshot ${index + 1}`);
     const img = document.createElement("img");
-    const proxied = galleryImageUrl(src);
     img.src = proxied;
     img.alt = `Screenshot ${index + 1}`;
     img.loading = "lazy";
+    const zoom = document.createElement("span");
+    zoom.className = "game-media-card-zoom";
+    zoom.setAttribute("aria-hidden", "true");
+    zoom.innerHTML = '<i class="fa-solid fa-magnifying-glass-plus"></i>';
     button.appendChild(img);
-    button.addEventListener("click", () => window.open(proxied, "_blank", "noopener,noreferrer"));
+    button.appendChild(zoom);
+    button.addEventListener("click", () => openMediaLightbox(images.map(galleryImageUrl), index));
     track.appendChild(button);
   });
   bindHorizontalScroll(container, ".game-media-scroll");
@@ -848,15 +1120,22 @@ function renderGameRecommendations(container: HTMLElement, game: TitleEntry): vo
     button.className = "game-rec-card";
     button.innerHTML = `
       <div class="game-rec-cover cover-crop-view">
-        <img src="${coverUrl(rec.title_id)}" alt="" loading="lazy" />
+        <img alt="" loading="lazy" />
       </div>
       <div class="game-rec-copy">
         <div class="game-rec-name"></div>
         <div class="game-rec-genre"></div>
       </div>
+      ${communityScoreBadgeHtml(rec.rating, "browse-tile-score game-rec-score")}
     `;
     button.querySelector(".game-rec-name")!.textContent = rec.name;
     button.querySelector(".game-rec-genre")!.textContent = (rec.genre?.slice(0, 2) ?? ["Related title"]).join(" · ");
+    const recCover = button.querySelector<HTMLImageElement>(".game-rec-cover img");
+    if (recCover) {
+      bindCroppedCover(recCover, coverUrl(rec.title_id), {
+        fallbackSrc: `https://placehold.co/280x390/202020/ffffff.png?text=${encodeURIComponent(rec.name)}`
+      });
+    }
     button.addEventListener("click", () => openGamePage(rec));
     track.appendChild(button);
   }
@@ -865,10 +1144,12 @@ function renderGameRecommendations(container: HTMLElement, game: TitleEntry): vo
 
 function openGamePage(game: TitleEntry, push = true): void {
   closeDownloadModal();
+  closePackageModal();
   closeCollectionModal();
   activeGame = game;
   setActiveGameForCollections(game);
   const title = document.getElementById("gp-title");
+  const score = document.getElementById("gp-score");
   const desc = document.getElementById("gp-desc");
   const dev = document.getElementById("gp-dev");
   const pub = document.getElementById("gp-pub");
@@ -883,10 +1164,10 @@ function openGamePage(game: TitleEntry, push = true): void {
   const media = document.getElementById("gp-media");
   const recommendations = document.getElementById("gp-rec");
   const page = document.getElementById("gamePage");
-  if (!title || !desc || !dev || !pub || !reg || !release || !rate || !year || !cover || !coverWrap || !bg || !tags || !media || !recommendations || !page) return;
+  if (!title || !score || !desc || !dev || !pub || !reg || !release || !rate || !year || !cover || !coverWrap || !bg || !tags || !media || !recommendations || !page) return;
 
-  page.classList.remove("hidden", "game-page--loading");
-  page.classList.add("game-page--ready");
+  page.classList.remove("hidden", "game-page--ready");
+  page.classList.add("game-page--loading");
   document.body.classList.add("game-view");
   syncHeaderAccountPlacement();
   page.setAttribute("aria-hidden", "false");
@@ -898,34 +1179,58 @@ function openGamePage(game: TitleEntry, push = true): void {
   bg.classList.remove("is-loaded");
 
   title.textContent = game.name;
+  score.innerHTML = communityScoreBadgeHtml(game.rating, "game-page-score-badge");
   desc.textContent = game.description ?? "No description available.";
   dev.textContent = game.developer ?? "—";
   pub.textContent = game.publisher ?? "—";
   reg.textContent = game.regions?.join(", ") || "—";
-  release.textContent = game.release_date ?? "—";
+  release.textContent = formatReleaseDate(game.release_date);
   rate.innerHTML = stars(game.rating);
   year.textContent = game.release_date ? game.release_date.slice(0, 4) : "";
 
   renderGameTags(tags, game);
   updateDownloadButton(game);
+  syncGameBackLabel();
+  syncGameCollectionButton();
   renderMediaStrip(media, game.artwork?.gallery ?? []);
   renderGameRecommendations(recommendations, game);
 
   const coverSrc = coverUrl(game.title_id);
   const bgSrc = gameBackgroundUrl(game);
-  cover.src = coverSrc;
   cover.alt = `${game.name} cover art`;
   bg.src = bgSrc;
-  cover.onerror = () => {
-    cover.src = "https://placehold.co/300x420/202020/ffffff.png?text=No+Cover";
+  const coverFallback = "https://placehold.co/300x420/202020/ffffff.png?text=No+Cover";
+  bindCroppedCover(cover, coverSrc, {
+    fallbackSrc: coverFallback,
+    onReady: () => {
+      if (activeGame?.title_id !== game.title_id) return;
+      cover.classList.add("is-loaded");
+    },
+    onError: () => {
+      coverWrap.classList.remove("is-loading");
+      coverWrap.classList.add("is-loaded");
+      cover.classList.add("is-loaded");
+    }
+  });
+
+  let gamePageRevealed = false;
+  const revealGamePage = (): void => {
+    if (gamePageRevealed || activeGame?.title_id !== game.title_id) return;
+    gamePageRevealed = true;
+    page.classList.remove("game-page--loading");
+    page.classList.add("game-page--ready");
   };
 
-  void Promise.all([preloadImage(coverSrc), preloadImage(bgSrc)]).then(() => {
+  const revealFallbackTimer = window.setTimeout(revealGamePage, 3500);
+
+  void Promise.all([preloadCroppedCover(coverSrc), preloadImage(bgSrc)]).then(() => {
     if (activeGame?.title_id !== game.title_id) return;
     coverWrap.classList.remove("is-loading");
     coverWrap.classList.add("is-loaded");
     cover.classList.add("is-loaded");
     bg.classList.add("is-loaded");
+    window.clearTimeout(revealFallbackTimer);
+    requestAnimationFrame(() => requestAnimationFrame(revealGamePage));
   });
 
   if (push) {
@@ -1048,6 +1353,20 @@ function syncRegion(value: string): void {
   applyFilters();
 }
 
+function dlcPivotCount(): number {
+  return db.filter((g) => {
+    if (/demo|beta|trial/i.test(g.name)) return false;
+    return g.downloads.some((d) => d.type === "DLC" || d.type === "Update");
+  }).length;
+}
+
+function updateDlcPivotChrome(): void {
+  const pivot = document.getElementById("p-DLC");
+  const available = dlcPivotCount() > 0;
+  pivot?.classList.toggle("hidden", !available);
+  if (!available && category === "DLC") switchCategory("Game");
+}
+
 function updateBrowseModeChrome(): void {
   const isDlc = category === "DLC";
   document.body.classList.toggle("browse-mode-dlc", isDlc);
@@ -1058,6 +1377,7 @@ function updateBrowseModeChrome(): void {
   const gamesStat = document.getElementById("siteHeroGames");
   const addonsStat = document.getElementById("siteHeroAddons");
   const featuredTitle = document.getElementById("featuredTitle");
+  const featuredSubtitle = document.getElementById("featuredSubtitle");
 
   if (eyebrow) eyebrow.textContent = isDlc ? "Add-ons & Updates" : "Xbox 360 Archive";
   if (title) {
@@ -1072,7 +1392,12 @@ function updateBrowseModeChrome(): void {
   }
   if (gamesStat) gamesStat.classList.toggle("site-hero-stat--muted", isDlc);
   if (addonsStat) addonsStat.classList.toggle("site-hero-stat--emphasis", isDlc);
-  if (featuredTitle) featuredTitle.textContent = isDlc ? "Titles with Add-ons" : "Top Rated";
+  const filterTitle = document.getElementById("browseFilterDrawerTitle");
+  const sortLabel = document.getElementById("browseSortLabel");
+  const regionLabel = document.getElementById("browseRegionLabel");
+  if (filterTitle) filterTitle.textContent = isDlc ? "Package filters" : "Catalog filters";
+  if (sortLabel) sortLabel.textContent = isDlc ? "Sort by" : "Sort catalog";
+  if (regionLabel) regionLabel.textContent = isDlc ? "File region" : "Region";
 }
 
 function regionLabel(value: string): string {
@@ -1101,27 +1426,36 @@ function toggleFilterDrawer(): void {
   else closeFilterDrawer();
 }
 
+function defaultSortForCategory(): string {
+  return category === "DLC" ? "name" : "rating";
+}
+
+function syncSortDropdownForCategory(): void {
+  const options = category === "DLC" ? ADDON_SORT_OPTIONS : SORT_OPTIONS;
+  const current = getDropdownValue("sort");
+  const valid = options.some((option) => option.value === current);
+  const value = valid ? current : defaultSortForCategory();
+  replaceDropdownOptions("sort", options, value, onSortChange);
+}
+
+function onSortChange(): void {
+  applyFilters();
+  updateFilterDrawerChrome();
+}
+
 function updateFilterDrawerChrome(): void {
-  const badge = document.getElementById("browseFilterBadge");
+  const label = document.getElementById("browseFilterLabel");
   const toggle = document.getElementById("browseFilterToggle");
-  const sort = getDropdownValue("sort") || "rating";
-  const drawerCount = (sort !== "rating" ? 1 : 0) + (settings.r !== "all" ? 1 : 0);
-  const query = (document.getElementById("q") as HTMLInputElement | null)?.value.trim() ?? "";
-  const chipCount =
-    drawerCount +
+  const sort = getDropdownValue("sort") || defaultSortForCategory();
+  const activeCount =
+    (sort !== defaultSortForCategory() ? 1 : 0) +
+    (settings.r !== "all" ? 1 : 0) +
     (activeGenre && category === "Game" ? 1 : 0) +
-    (query ? 1 : 0);
+    (activeAddonType !== "all" && category === "DLC" ? 1 : 0);
+  const query = (document.getElementById("q") as HTMLInputElement | null)?.value.trim() ?? "";
+  const chipCount = activeCount + (query ? 1 : 0);
 
-  if (badge) {
-    if (drawerCount) {
-      badge.textContent = String(drawerCount);
-      badge.classList.remove("hidden");
-    } else {
-      badge.textContent = "";
-      badge.classList.add("hidden");
-    }
-  }
-
+  if (label) label.textContent = activeCount > 0 ? `Filters · ${activeCount}` : "Filters";
   toggle?.classList.toggle("is-active", chipCount > 0);
 }
 
@@ -1135,8 +1469,9 @@ function bindFilterDrawer(): void {
   });
   document.getElementById("browseFilterClose")?.addEventListener("click", () => closeFilterDrawer());
   document.getElementById("browseFilterReset")?.addEventListener("click", () => {
-    setDropdownValue("sort", "rating");
+    setDropdownValue("sort", defaultSortForCategory());
     syncRegion("all");
+    if (category === "DLC") setAddonTypeFilter("all", { scroll: false });
     applyFilters();
     closeFilterDrawer();
   });
@@ -1157,6 +1492,11 @@ function renderEmptyCatalog(): void {
 
   const query = (document.getElementById("q") as HTMLInputElement | null)?.value.trim() ?? "";
   const chips: string[] = [];
+  if (activeAddonType !== "all" && category === "DLC") {
+    chips.push(
+      `<button type="button" class="browse-empty-chip" data-clear-addon-type>${escapeHtml(addonTypeLabel(activeAddonType))}</button>`
+    );
+  }
   if (activeGenre && category === "Game") {
     chips.push(`<button type="button" class="browse-empty-chip" data-clear-genre>${escapeHtml(genreLabel(activeGenre))}</button>`);
   }
@@ -1177,15 +1517,20 @@ function renderEmptyCatalog(): void {
     </div>
   `;
 
+  grid.querySelector("[data-clear-addon-type]")?.addEventListener("click", () => setAddonTypeFilter("all", { scroll: false }));
   grid.querySelector("[data-clear-genre]")?.addEventListener("click", () => setGenreFilter(null, { scroll: false }));
   grid.querySelector("[data-clear-region]")?.addEventListener("click", () => syncRegion("all"));
   grid.querySelector("[data-clear-all]")?.addEventListener("click", () => {
     activeGenre = null;
+    activeAddonType = "all";
     syncGenreToUrl(null, true);
+    syncAddonTypeToUrl("all", true);
     const input = document.getElementById("q") as HTMLInputElement | null;
     if (input) input.value = "";
     syncRegion("all");
+    setDropdownValue("sort", defaultSortForCategory());
     renderGenreRail();
+    renderAddonTypeRail();
   });
 }
 
@@ -1204,12 +1549,15 @@ function renderSiteHero(): void {
   const gameCount = db.filter((g) => isGameEntry(g) && !/demo|beta|trial/i.test(g.name)).length;
   const addonCount = db.filter((g) => isAddonEntry(g) && !/demo|beta|trial/i.test(g.name)).length;
   if (gamesEl) gamesEl.innerHTML = `<strong>${gameCount.toLocaleString()}</strong> games`;
-  if (addonsEl) addonsEl.innerHTML = `<strong>${addonCount.toLocaleString()}</strong> add-ons`;
+  if (addonsEl) {
+    addonsEl.hidden = addonCount === 0;
+    if (addonCount > 0) addonsEl.innerHTML = `<strong>${addonCount.toLocaleString()}</strong> add-ons`;
+  }
+  updateSearchPlaceholder();
 
   const pool = siteHeroCandidates();
-  const picks = randomSample(pool, 7);
-  const bgPicks = picks.slice(0, 4);
-  const coverPicks = picks.slice(4, 7);
+  const { covers: coverPicks, backgrounds: bgPicks } = pickHeroVisualTitles(db, pool);
+  updateDlcPivotChrome();
 
   slides.innerHTML = bgPicks
     .map(
@@ -1221,22 +1569,38 @@ function renderSiteHero(): void {
   covers.innerHTML = "";
   coverPicks.forEach((entry, index) => {
     const card = document.createElement("div");
-    card.className = "site-hero-cover";
+    card.className = "site-hero-cover cover-crop-view";
     card.style.setProperty("--cover-index", String(index));
-    card.innerHTML = `<img src="${coverUrl(entry.title_id)}" alt="" loading="lazy" />`;
+    const img = document.createElement("img");
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    bindCroppedCover(img, coverUrl(entry.title_id));
+    card.appendChild(img);
     covers.appendChild(card);
   });
 }
 
 function bindSiteHeroEvents(): void {
-  document.getElementById("siteHeroBrowse")?.addEventListener("click", () => {
-    scrollBelowHeader(document.getElementById("grid"));
+  document.getElementById("siteHeroBrowse")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    scrollBelowHeader(document.getElementById("catalogSection"));
   });
-  document.getElementById("siteHeroSearch")?.addEventListener("click", () => {
-    const input = document.getElementById("q") as HTMLInputElement | null;
-    input?.focus();
-    scrollBelowHeader(input);
-  });
+}
+
+function updateSearchPlaceholder(): void {
+  const input = document.getElementById("q") as HTMLInputElement | null;
+  if (!input) return;
+  const gameCount = db.filter((g) => isGameEntry(g) && !/demo|beta|trial/i.test(g.name)).length;
+  const addonCount = db.filter((g) => isAddonEntry(g) && !/demo|beta|trial/i.test(g.name)).length;
+  if (category === "DLC") {
+    input.placeholder = `Search ${addonCount.toLocaleString()} games or pack filenames…`;
+    input.setAttribute("aria-label", `Search games or downloadable package filenames`);
+    return;
+  }
+  const total = gameCount + addonCount;
+  input.placeholder = `Search ${total.toLocaleString()} games, DLCs, or publishers…`;
+  input.setAttribute("aria-label", `Search ${total.toLocaleString()} games, DLCs, or publishers`);
 }
 
 function featuredCandidates(): TitleEntry[] {
@@ -1266,7 +1630,7 @@ function renderHeroRows(): void {
   if (!hGrid) return;
 
   const candidates = featuredCandidates();
-  const top = randomSample(candidates, 3);
+  const top = candidates.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 3);
   hGrid.innerHTML = "";
 
   if (!top.length) {
@@ -1274,19 +1638,15 @@ function renderHeroRows(): void {
     return;
   }
 
-  const eyebrow = category === "DLC" ? "Has Add-ons" : "Top Rated";
-  for (const game of top) {
+  for (const [index, game] of top.entries()) {
+    const rank = index + 1;
     const card = createHeroCard(game, {
-      eyebrow,
+      rank,
+      eyebrow: category === "DLC" ? "Has Add-ons" : `#${rank} Top Rated`,
       backgroundUrl: gameBackgroundUrl(game),
       onActivate: (entry) => {
-        if (category === "DLC") {
-          const gridCard = document.querySelector<HTMLButtonElement>(`.browse-card[data-title-id="${entry.title_id}"]`);
-          if (gridCard) openShelf(gridCard, entry);
-          else openGamePage(entry);
-        } else {
-          openGamePage(entry);
-        }
+        if (category === "DLC") openPackageModal(entry);
+        else openGamePage(entry);
       }
     });
     hGrid.appendChild(card);
@@ -1294,153 +1654,188 @@ function renderHeroRows(): void {
   observeRevealChildren(hGrid, ".browse-hero-card", 45);
 }
 
-function closeShelf(): void {
-  shelfEl?.classList.remove("open");
-  document.body.classList.remove("dimmed");
-  if (activeTile) {
-    activeTile.classList.remove("active");
-  }
-  activeTile = null;
-}
+function buildGridCard(game: TitleEntry): HTMLButtonElement {
+  const onActivate = (_node: HTMLButtonElement, entry: TitleEntry) => {
+    if (category === "DLC") openPackageModal(entry);
+    else openGamePage(entry);
+  };
 
-function openShelf(card: HTMLElement, game: TitleEntry): void {
-  if (!shelfEl) return;
-  if (activeTile === card) {
-    closeShelf();
-    return;
-  }
-  if (activeTile) activeTile.classList.remove("active");
-  activeTile = card;
-  card.classList.add("active");
-  document.body.classList.add("dimmed");
-
-  const sTitle = document.getElementById("sTitle");
-  const sGrid = document.getElementById("sGrid");
-  if (!sTitle || !sGrid) return;
-
-  sTitle.innerHTML = `<img class="browse-shelf-icon" src="${iconUrl(game)}" alt="" />${game.name} Addons`;
-  sGrid.innerHTML = "";
-  const items = game.downloads.filter((d) => d.type === "DLC" || d.type === "Update");
-  for (const d of items) {
-    if (!d.url) continue;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "s-item";
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      handleDownload(d.url, d.filename, event.currentTarget as HTMLButtonElement);
-    });
-    const display = formatDownloadDisplay(d.label ?? d.filename);
-    const meta = display.meta ? `<div class="dl-meta">${display.meta}</div>` : "";
-    button.innerHTML = `<div><div style="font-size:0.7rem;color:#888">${d.type === "Update" ? "UPDATE" : "ADDON"}</div><b>${display.title}</b>${meta}</div><span style="color:var(--green)"><i class="fa-solid fa-download"></i></span>`;
-    sGrid.appendChild(button);
-  }
-
-  window.setTimeout(() => {
-    shelfEl?.classList.add("open");
-    shelfEl?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, 30);
-}
-
-function renderPageTiles(): void {
-  const grid = document.getElementById("grid");
-  if (!grid) return;
-
-  const { start, end } = pageBounds(currentPage, grid);
-  const batch = filtered.slice(start, end);
-  grid.innerHTML = "";
-  if (!filtered.length) {
-    renderEmptyCatalog();
-    return;
-  }
-  if (!batch.length) return;
-
-  const frag = document.createDocumentFragment();
-  for (const game of batch) {
-    let badge = "";
-    if (category === "DLC") badge = "DLC Inside";
-    else if (game.downloads.some((d) => d.type === "DLC")) badge = "Has Addons";
-
-    const card = createGridCard(game, {
-      badge,
+  if (category === "DLC") {
+    return createAddonListCard(game, {
+      subtitle: addonPackageSummary(game, activeAddonType),
+      coverSrc: coverUrl(game.title_id),
       dimmed: !game.downloads?.length,
-      onActivate: (node, entry) => {
-        if (category === "DLC") openShelf(node, entry);
-        else openGamePage(entry);
-      }
+      onActivate
     });
-    card.dataset.titleId = game.title_id;
-    const img = card.querySelector<HTMLImageElement>("img");
-    if (img) img.src = coverUrl(game.title_id);
-    frag.appendChild(card);
   }
-  grid.appendChild(frag);
-  const cols = getGridColumnCount(grid);
-  grid.querySelectorAll<HTMLImageElement>(".browse-card img").forEach((img, index) => {
-    if (index < cols) img.fetchPriority = "high";
+
+  let badge = "";
+  if (game.downloads.some((d) => d.type === "DLC")) badge = "+ Addons";
+
+  const card = createGridCard(game, {
+    badge,
+    dimmed: !game.downloads?.length,
+    onActivate
   });
-  observeRevealFirstRow(grid, ".browse-card", cols, 35);
+  card.dataset.titleId = game.title_id;
+  return card;
 }
 
-function setPage(page: number, scrollToGrid = true): void {
-  const grid = document.getElementById("grid");
-  const totalPages = grid ? pageCountForGrid(grid) : Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const nextPage = Math.min(Math.max(1, page), totalPages);
-  if (nextPage !== currentPage) {
-    closeShelf();
-  }
-  currentPage = nextPage;
-  renderPageTiles();
-  renderPagination();
-  if (scrollToGrid) {
-    document.getElementById("grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-}
-
-function renderPagination(): void {
+function renderScrollStatus(): void {
   const pager = document.getElementById("pager");
-  const grid = document.getElementById("grid");
   if (!pager) return;
   if (!filtered.length) {
     pager.innerHTML = "";
     return;
   }
-
-  const totalPages = grid ? pageCountForGrid(grid) : Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const bounds = grid ? pageBounds(currentPage, grid) : { start: 0, end: filtered.length };
-  const start = bounds.start + 1;
-  const end = bounds.end;
-  const pageStart = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
-  const pageEnd = Math.min(totalPages, pageStart + 4);
-  let html = `<button type="button" class="page-btn nav" data-page="${currentPage - 1}" ${currentPage === 1 ? "disabled" : ""}><i class="fa-solid fa-chevron-left"></i></button>`;
-
-  for (let page = pageStart; page <= pageEnd; page += 1) {
-    html += `<button type="button" class="page-btn ${page === currentPage ? "active" : ""}" data-page="${page}">${page}</button>`;
-  }
-
-  html += `<button type="button" class="page-btn nav" data-page="${currentPage + 1}" ${
-    currentPage === totalPages ? "disabled" : ""
-  }><i class="fa-solid fa-chevron-right"></i></button>`;
-  html += `<span class="page-meta">Showing ${start}-${end} of ${filtered.length}</span>`;
-  pager.innerHTML = html;
-  pager.querySelectorAll<HTMLButtonElement>(".page-btn[data-page]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const target = Number(button.dataset.page);
-      if (Number.isFinite(target)) setPage(target);
-    });
-  });
+  pager.innerHTML = `<span class="page-meta">Showing ${loadedCount.toLocaleString()} of ${filtered.length.toLocaleString()}</span>`;
 }
 
-function updateGamesOnlyChrome(): void {
+function setupGridObserver(): void {
+  gridObserver?.disconnect();
+  const sentinel = document.getElementById("gridSentinel");
+  if (!sentinel || loadedCount >= filtered.length) return;
+
+  gridObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) loadMoreTiles();
+    },
+    { rootMargin: "0px 0px 400px 0px" }
+  );
+  gridObserver.observe(sentinel);
+}
+
+function appendCatalogTiles(): void {
+  const grid = document.getElementById("grid");
+  if (!grid || !filtered.length) return;
+
+  const start = loadedCount;
+  const end = Math.min(filtered.length, start + batchSize(grid));
+  const slice = filtered.slice(start, end);
+  if (!slice.length) {
+    renderScrollStatus();
+    setupGridObserver();
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+  const cardSelector = catalogCardSelector();
+  const prevCount = grid.querySelectorAll(cardSelector).length;
+  for (const game of slice) {
+    frag.appendChild(buildGridCard(game));
+  }
+  grid.appendChild(frag);
+  loadedCount = end;
+
+  const cols = category === "DLC" ? 1 : getGridColumnCount(grid);
+  const eagerImages = category === "DLC" ? 6 : cols;
+  grid.querySelectorAll<HTMLImageElement>(`${cardSelector} img`).forEach((img, index) => {
+    if (index < eagerImages && prevCount === 0) img.fetchPriority = "high";
+  });
+  if (prevCount === 0) {
+    observeRevealFirstRow(grid, cardSelector, cols, 35);
+  } else {
+    grid.querySelectorAll<HTMLElement>(cardSelector).forEach((card, index) => {
+      if (index >= prevCount) observeReveal(card, (index - prevCount) * 35);
+    });
+  }
+
+  renderScrollStatus();
+  setupGridObserver();
+}
+
+function loadMoreTiles(): void {
+  if (isLoadingMore || loadedCount >= filtered.length) return;
+  isLoadingMore = true;
+  appendCatalogTiles();
+  isLoadingMore = false;
+}
+
+let gridTransitionTimer = 0;
+
+function resetCatalogGrid(): void {
+  const grid = document.getElementById("grid");
+  if (!grid) return;
+
+  grid.classList.add("is-transitioning");
+  window.clearTimeout(gridTransitionTimer);
+
+  gridTransitionTimer = window.setTimeout(() => {
+    gridObserver?.disconnect();
+    loadedCount = 0;
+    isLoadingMore = false;
+    syncCatalogGridLayout();
+    grid.innerHTML = "";
+    if (!filtered.length) {
+      renderEmptyCatalog();
+      renderScrollStatus();
+    } else {
+      appendCatalogTiles();
+    }
+    
+    void grid.offsetWidth;
+    grid.classList.remove("is-transitioning");
+  }, 150);
+}
+
+function renderPageTiles(): void {
+  resetCatalogGrid();
+}
+
+function updateBrowseSectionChrome(): void {
   document.querySelectorAll<HTMLElement>(".games-only").forEach((node) => {
     node.classList.toggle("hidden", category !== "Game");
   });
+  document.querySelectorAll<HTMLElement>(".dlc-only").forEach((node) => {
+    node.classList.toggle("hidden", category !== "DLC");
+  });
+}
+
+function updateGenreRailOverflow(): void {
+  const scroll = document.getElementById("genreRailScroll");
+  const rail = document.getElementById("genreRail");
+  if (!scroll || !rail) return;
+  scroll.classList.toggle("is-overflowing", rail.scrollWidth > scroll.clientWidth);
+}
+
+function updateAddonTypeRailOverflow(): void {
+  const scroll = document.getElementById("addonTypeRailScroll");
+  const rail = document.getElementById("addonTypeRail");
+  if (!scroll || !rail) return;
+  scroll.classList.toggle("is-overflowing", rail.scrollWidth > scroll.clientWidth);
+}
+
+function renderAddonTypeRail(): void {
+  const rail = document.getElementById("addonTypeRail");
+  if (!rail) return;
+  rail.innerHTML = ADDON_TYPE_FILTERS.map(
+    (filter) => `
+      <button
+        type="button"
+        class="genre-chip${activeAddonType === filter.slug ? " is-active" : ""}"
+        data-addon-type="${filter.slug}"
+        role="option"
+        aria-selected="${activeAddonType === filter.slug ? "true" : "false"}"
+      >
+        <i class="fa-solid ${filter.icon}" aria-hidden="true"></i>
+        <span>${filter.label}</span>
+      </button>
+    `
+  ).join("");
+  requestAnimationFrame(() => updateAddonTypeRailOverflow());
+}
+
+function catalogSectionTitle(): string {
+  if (category === "Game") {
+    return activeGenre ? genreLabel(activeGenre) : "All Games";
+  }
+  if (activeAddonType === "dlc") return "DLC & Add-ons";
+  if (activeAddonType === "update") return "Title Updates";
+  return "All Packages";
 }
 
 function renderGenreRail(): void {
   const rail = document.getElementById("genreRail");
-  const countEl = document.getElementById("genreCount");
-  if (countEl) countEl.textContent = `${GENRE_FILTERS.length} genres`;
   if (!rail) return;
   rail.innerHTML = GENRE_FILTERS.map(
     (filter) => `
@@ -1456,6 +1851,7 @@ function renderGenreRail(): void {
       </button>
     `
   ).join("");
+  requestAnimationFrame(() => updateGenreRailOverflow());
 }
 
 function renderActiveFilters(): void {
@@ -1464,6 +1860,11 @@ function renderActiveFilters(): void {
   const chips: string[] = [];
   const query = (document.getElementById("q") as HTMLInputElement | null)?.value.trim() ?? "";
 
+  if (activeAddonType !== "all" && category === "DLC") {
+    chips.push(
+      `<span class="browse-filter-chip">${addonTypeLabel(activeAddonType)}<button type="button" data-clear-addon-type aria-label="Clear package type filter"><i class="fa-solid fa-xmark"></i></button></span>`
+    );
+  }
   if (activeGenre && category === "Game") {
     chips.push(
       `<span class="browse-filter-chip">${genreLabel(activeGenre)}<button type="button" data-clear-genre aria-label="Clear genre filter"><i class="fa-solid fa-xmark"></i></button></span>`
@@ -1500,7 +1901,21 @@ function setGenreFilter(
   renderActiveFilters();
   applyFilters();
   if (slug && options.scroll !== false) {
-    scrollBelowHeader(document.getElementById("genreSection"));
+    scrollBelowHeader(document.getElementById("catalogSection"));
+  }
+}
+
+function setAddonTypeFilter(
+  slug: AddonTypeSlug,
+  options: { push?: boolean; scroll?: boolean } = {}
+): void {
+  activeAddonType = slug;
+  syncAddonTypeToUrl(slug, options.push ?? true);
+  renderAddonTypeRail();
+  renderActiveFilters();
+  applyFilters();
+  if (slug !== "all" && options.scroll !== false) {
+    scrollBelowHeader(document.getElementById("catalogSection"));
   }
 }
 
@@ -1511,8 +1926,18 @@ function bindGenreEvents(): void {
     const slug = button.dataset.genre;
     setGenreFilter(activeGenre === slug ? null : slug);
   });
+  document.getElementById("addonTypeRail")?.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".genre-chip");
+    const slug = button?.dataset.addonType;
+    if (!isAddonTypeSlug(slug)) return;
+    setAddonTypeFilter(activeAddonType === slug ? "all" : slug);
+  });
   document.getElementById("browseFilterBar")?.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
+    if (target.closest("[data-clear-addon-type]")) {
+      setAddonTypeFilter("all", { scroll: false });
+      return;
+    }
     if (target.closest("[data-clear-genre]")) {
       setGenreFilter(null, { scroll: false });
       return;
@@ -1523,11 +1948,15 @@ function bindGenreEvents(): void {
     }
     if (target.closest("[data-clear-all]")) {
       activeGenre = null;
+      activeAddonType = "all";
       syncGenreToUrl(null, true);
+      syncAddonTypeToUrl("all", true);
       const input = document.getElementById("q") as HTMLInputElement | null;
       if (input) input.value = "";
       syncRegion("all");
+      setDropdownValue("sort", defaultSortForCategory());
       renderGenreRail();
+      renderAddonTypeRail();
       renderActiveFilters();
       applyFilters();
     }
@@ -1536,47 +1965,52 @@ function bindGenreEvents(): void {
 
 function applyFilters(): void {
   const query = (document.getElementById("q") as HTMLInputElement | null)?.value.toLowerCase() ?? "";
-  const sort = getDropdownValue("sort") || "rating";
+  const sort = getDropdownValue("sort") || defaultSortForCategory();
   const cnt = document.getElementById("cnt");
   const title = document.getElementById("lTitle");
-  if (title) {
-    if (activeGenre && category === "Game") {
-      title.textContent = genreLabel(activeGenre);
-    } else {
-      title.textContent = category === "Game" ? "All Games" : "Addons & DLC";
-    }
-  }
-  closeShelf();
+  if (title) title.textContent = catalogSectionTitle();
+  updateSearchPlaceholder();
+  closePackageModal();
 
   filtered = db.filter((g) => {
     if (/demo|beta|trial/i.test(g.name)) return false;
     const nameMatch = g.name.toLowerCase().includes(query);
-    const dlcMatch = g.downloads.some((d) => (d.type === "DLC" || d.type === "Update") && d.filename.toLowerCase().includes(query));
-    const match = category === "DLC" ? nameMatch || dlcMatch : nameMatch;
+    const packageMatch = g.downloads.some(
+      (d) =>
+        matchesAddonTypeFilter(d, activeAddonType) &&
+        ((d.label ?? d.filename).toLowerCase().includes(query) || d.filename.toLowerCase().includes(query))
+    );
+    const match = category === "DLC" ? nameMatch || packageMatch : nameMatch;
     const catMatch =
       category === "Game"
         ? g.downloads.length === 0 || g.downloads.some((d) => d.type === "Game" || !d.type || d.type === "ROM")
-        : g.downloads.some((d) => d.type === "DLC" || d.type === "Update");
+        : titleHasAddonType(g, activeAddonType);
     const regMatch =
       settings.r === "all" || (g.regions ? g.regions.includes(settings.r) || g.regions.includes("World") : false);
     const genreMatch = category === "Game" && matchesGenreFilter(g, activeGenre);
-    return category === "DLC" ? match && catMatch : match && catMatch && regMatch && genreMatch;
+    return category === "DLC" ? match && catMatch && regMatch : match && catMatch && regMatch && genreMatch;
   });
 
   filtered.sort((a, b) => {
     if (sort === "name") return a.name.localeCompare(b.name);
+    if (sort === "packs") return countAddonDownloads(b, activeAddonType) - countAddonDownloads(a, activeAddonType);
     if (sort === "newest") return (Date.parse(b.release_date ?? "") || 0) - (Date.parse(a.release_date ?? "") || 0);
     return (b.rating ?? 0) - (a.rating ?? 0);
   });
 
-  if (cnt) cnt.textContent = `${filtered.length.toLocaleString()} titles`;
-  currentPage = 1;
-  setPage(1, false);
+  if (cnt) {
+    cnt.textContent =
+      category === "DLC"
+        ? `${filtered.length.toLocaleString()} titles with packages`
+        : `${filtered.length.toLocaleString()} titles`;
+  }
+  resetCatalogGrid();
   renderActiveFilters();
-  updateGamesOnlyChrome();
+  updateBrowseSectionChrome();
 }
 
 function switchCategory(next: Category): void {
+  closePackageModal();
   if (document.body.classList.contains("profile-view")) {
     closeProfilePage();
   }
@@ -1587,13 +2021,22 @@ function switchCategory(next: Category): void {
     activeGenre = null;
     syncGenreToUrl(null, false);
   }
+  if (next === "Game" && activeAddonType !== "all") {
+    activeAddonType = "all";
+    syncAddonTypeToUrl("all", false);
+  }
   category = next;
   document.getElementById("p-Game")?.classList.toggle("active", next === "Game");
   document.getElementById("p-DLC")?.classList.toggle("active", next === "DLC");
   updateBrowseModeChrome();
+  syncSortDropdownForCategory();
+  syncCatalogGridLayout();
+  updateBrowseSectionChrome();
   renderHeroRows();
   renderGenreRail();
+  renderAddonTypeRail();
   applyFilters();
+  updateFilterDrawerChrome();
 }
 
 function setupSettings(): void {
@@ -1660,14 +2103,33 @@ function saveSettings(): void {
 }
 
 function bindStaticEvents(): void {
-  document.getElementById("dimmer")?.addEventListener("click", () => closeShelf());
   document.getElementById("btt")?.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
   document.getElementById("close-settings")?.addEventListener("click", () => closeSettings());
-  document.getElementById("save-settings")?.addEventListener("click", () => saveSettings());
-  document.getElementById("close-shelf")?.addEventListener("click", () => closeShelf());
+  document.getElementById("close-package-mod")?.addEventListener("click", () => closePackageModal());
   document.getElementById("close-game-page")?.addEventListener("click", () => closeGamePage());
   document.getElementById("gp-download-btn")?.addEventListener("click", () => openDownloadModal());
   document.getElementById("close-download-mod")?.addEventListener("click", () => closeDownloadModal());
+  document.getElementById("close-media-lightbox")?.addEventListener("click", () => closeMediaLightbox());
+  document.getElementById("mediaLightbox")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeMediaLightbox();
+  });
+  document.getElementById("media-lightbox-prev")?.addEventListener("click", () => {
+    if (mediaLightboxImages.length <= 1) return;
+    mediaLightboxIndex = (mediaLightboxIndex - 1 + mediaLightboxImages.length) % mediaLightboxImages.length;
+    syncMediaLightbox();
+  });
+  document.getElementById("media-lightbox-next")?.addEventListener("click", () => {
+    if (mediaLightboxImages.length <= 1) return;
+    mediaLightboxIndex = (mediaLightboxIndex + 1) % mediaLightboxImages.length;
+    syncMediaLightbox();
+  });
+  document.addEventListener("keydown", (event) => {
+    const lightbox = document.getElementById("mediaLightbox");
+    if (!lightbox?.classList.contains("show")) return;
+    if (event.key === "Escape") closeMediaLightbox();
+    if (event.key === "ArrowLeft") document.getElementById("media-lightbox-prev")?.click();
+    if (event.key === "ArrowRight") document.getElementById("media-lightbox-next")?.click();
+  });
   document.getElementById("p-Game")?.addEventListener("click", () => switchCategory("Game"));
   document.getElementById("p-DLC")?.addEventListener("click", () => switchCategory("DLC"));
   bindSiteHeroEvents();
@@ -1679,10 +2141,7 @@ function bindStaticEvents(): void {
     searchTimer = window.setTimeout(() => applyFilters(), 150);
   });
   bindFormControlGlobals();
-  mountDropdown("sort", () => {
-    applyFilters();
-    updateFilterDrawerChrome();
-  });
+  mountDropdown("sort", onSortChange);
   mountDropdown("browseReg", () => syncRegion(getDropdownValue("browseReg")));
   mountDropdown("reg");
   initFormControls();
@@ -1691,6 +2150,9 @@ function bindStaticEvents(): void {
   });
   document.getElementById("downloadMod")?.addEventListener("click", (e) => {
     if (e.target === e.currentTarget) closeDownloadModal();
+  });
+  document.getElementById("packageMod")?.addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) closePackageModal();
   });
   window.addEventListener("xbx-close-game", (event) => {
     const push = (event as CustomEvent<{ push?: boolean }>).detail?.push ?? false;
@@ -1711,10 +2173,9 @@ function bindStaticEvents(): void {
     gridLayoutTimer = window.setTimeout(() => {
       const grid = document.getElementById("grid");
       if (!grid || !filtered.length) return;
-      const totalPages = pageCountForGrid(grid);
-      if (currentPage > totalPages) currentPage = totalPages;
-      renderPageTiles();
-      renderPagination();
+      setupGridObserver();
+      updateGenreRailOverflow();
+      updateAddonTypeRailOverflow();
     }, 150);
   });
 }
@@ -1725,7 +2186,6 @@ async function bootstrap(): Promise<void> {
   syncDefaultHead();
   setupSettings();
   renderSkeletonTiles();
-  shelfEl = document.getElementById("dlcShelf");
   bindStaticEvents();
   bindAuthUi();
   bindCollectionUi();
@@ -1735,8 +2195,13 @@ async function bootstrap(): Promise<void> {
   updateBrowseModeChrome();
   renderHeroRows();
   activeGenre = readGenreFromUrl();
+  activeAddonType = readAddonTypeFromUrl();
   renderGenreRail();
+  renderAddonTypeRail();
+  syncSortDropdownForCategory();
+  updateBrowseSectionChrome();
   applyFilters();
+  updateFilterDrawerChrome();
 
   const initialId = new URLSearchParams(window.location.search).get("title");
   const initialProfile = new URLSearchParams(window.location.search).get("profile");
@@ -1757,7 +2222,11 @@ async function bootstrap(): Promise<void> {
     }
     closeGamePage(false);
     activeGenre = readGenreFromUrl();
+    activeAddonType = readAddonTypeFromUrl();
     renderGenreRail();
+    renderAddonTypeRail();
+    syncSortDropdownForCategory();
+    updateBrowseSectionChrome();
     applyFilters();
   });
 }

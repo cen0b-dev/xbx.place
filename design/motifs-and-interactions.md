@@ -1,6 +1,6 @@
 # Motifs & Interactions
 
-Visual motifs, behavioral patterns, and Xbox/Metro interaction vocabulary used across xbx.place.
+Visual motifs, behavioral patterns, and interaction vocabulary across xbx.place.
 
 ---
 
@@ -8,137 +8,177 @@ Visual motifs, behavioral patterns, and Xbox/Metro interaction vocabulary used a
 
 ### 1. Cover-forward tiles
 
-The **game box shot** is the atomic UI unit — not list rows, not text tables. This mirrors:
+The **Xbox 360 box shot** is the atomic UI unit — grid tiles, hero cards, game page sidebar, profile collection thumbs, and site-hero fan all use the same crop ratio.
 
-- Xbox One **My Games** grid
-- Xbox Store browse pages
-- Windows 8 Metro **live tile** grids (static images here, no live tiles)
-
-Covers use **pixelated/crisp-edges** rendering where appropriate — a nod to legacy box art and emulator aesthetics, not glossy web photo treatment.
+Covers load through `cover-crop.ts` when possible; otherwise CSS top-strip offset. Aspect ratio always derives from `--t-w` / `--cover-visible-h`.
 
 ### 2. Green focus ring
 
-Selection is communicated with a **2px `--green` border**, not glow halos or thick outlines. Appears on:
+Selection = **2px `--green` border** (not glow halos). Used on:
 
-- Hovered/active tiles and hero cards (`:focus-visible` parity on `.browse-card`, `.browse-hero-card`)
-- Pagination hover
-- Icon buttons (icon color shift)
-- Thumbnail borders in gallery
+- Grid tiles and hero cards (`:focus-visible` parity)
+- Genre / package chips when active
+- Filter trigger when open or filters active
+- Download rows (left 4px accent on hover)
+- Scroll carousel nav hover
 
-This is the **Xbox accent focus** pattern carried from One through Series (Series often uses green glow on dashboard; web translation = solid border + shadow).
+### 3. Dual-state tile overlay
 
-### 3. Accent stripe on panels
-
-**Blades** and the **DLC shelf** use a thick green edge:
-
-| Component | Stripe position | Width |
-|-----------|-----------------|-------|
-| `.blade.sm` | Top | 4px |
-| `.blade.lg` | Left | 6px |
-| `.browse-shelf` | Top | 3px |
-| `.site-hero` | Left | 6px |
-
-Evokes Xbox **blade separator** and Series **sidebar indicator** without literal sliding animation.
+At rest, tiles show **persistent bottom scrim** with title, stars, and community score badge. On hover/focus, default meta **fades out** and a **hover panel** appears with extended meta + green "View" pill — more information without leaving the grid.
 
 ### 4. Uppercase structural type
 
-Navigation and section boundaries shout in caps:
+Wayfinding labels shout in caps:
 
 - Pivots: `GAMES`, `ADDONS & DLC`
-- Tabs: `OVERVIEW`, `DOWNLOADS`, `GALLERY`
-- Section rails: `TOP RATED`, `BROWSE BY GENRE`, `ALL GAMES`
-- Field labels: `DEVELOPER`, `PUBLISHER`, `REGIONS`
+- Sections: `TOP RATED`, `BROWSE BY GENRE`, `ALL GAMES`, `MEDIA`
+- Field labels: `DEVELOPER`, `SORT CATALOG`, `REGION`
+- Modal eyebrows: `DOWNLOAD`, `SITE`, `COLLECTION`
 
-Body copy stays sentence case — Metro **type hierarchy as wayfinding**.
+Body copy and parsed download titles stay sentence case.
 
 ### 5. Dark stack layers
 
-Background depth progresses **#101010 → #202020 → #252525 → frosted panels** — never pure black except scrims. Keeps artwork and green accents readable on OLED-style blacks without crushing shadow detail.
+Depth progresses **#101010 → #202020 → #252525 → #1f1f1f** — never pure black except modal scrims. Keeps green accent and cover art readable on OLED-style backgrounds.
 
 ### 6. Gradient scrims on imagery
 
-Text never sits on raw photos:
+Mandatory wherever text meets photos:
 
-- Hero bottom gradient
-- Tile overlay solid scrim
-- Modal `.m-bg` masked fade
-
-Console UIs always **legibility-mask** hero art; this is mandatory when adding new image-backed components.
+- `.browse-card.is-loaded::after` — multi-stop bottom gradient
+- `.browse-hero-shade`, `.game-page-bg-shade`
+- Modal `.game-modal-bg-shade`
+- Hero copy text-shadow on featured titles
 
 ### 7. Pill micro-elements
 
-Badges, pagination dots, theme swatches, gallery dots use **full rounding** — the primary "Series rounded Metro" break from 2012 sharp tiles.
+Stats (`.site-hero-stat`), filter chips, rank badges, avatars, scroll dots — full rounding (`--r-pill`). Primary "Series softened Metro" break from sharp 2012 tiles.
+
+### 8. Community score as Metacritic-style badge
+
+0–100 integer on tiles and game page with tier color coding (exceptional → muted). Unrated shows **NR** in neutral gray — distinct from low scores.
 
 ---
 
-## Interaction patterns
+## Navigation & view flows
 
-### Pivot navigation
+### Pivot switch (Games ↔ Add-ons)
 
 ```
 [ GAMES ]──────  ADDONS & DLC
-   ↑ 4px green underline, white text
+   ↑ 4px green underline
 ```
 
-- Instant category switch (no page reload)
-- Inactive pivots recede to `#666`
-- Single active pivot — binary hub model like Xbox top-level hubs
+- Instant re-filter; no full reload
+- `body.browse-mode-dlc` toggles hero copy, featured source, grid layout (portrait tiles → list rows), genre rail → package type rail
+- URL does not require a pivot param — state is in-memory unless genre/package filters set
 
-### Tile → detail flow
+### Browse → game detail
 
-1. Click catalog tile → full-page game view (`body.game-view`, `#gamePage`)
-2. URL updates with `?title=` for deep linking
-3. History back closes game page
-4. Background artwork loads in `.game-page-bg`
+1. Click grid tile or hero card → `body.game-view`, `#gamePage` visible
+2. URL `?title=<title_id>` for deep linking
+3. Skeleton → content fade-in when cover/metadata ready
+4. Back link or browser history → returns to browse (scroll position preserved where possible)
+5. Footer and FAB hidden
 
-Alternative path: in **Addons & DLC** mode, click tile → **shelf opens inline** below grid, page dims via `#dimmer`.
+### Browse → package picker (DLC mode)
 
-### Browse toolbar
+1. Click `.addon-list-card` → `#packageMod` overlay (not inline shelf)
+2. Select file → same download row pattern as game modal
+3. Back closes modal; browse grid remains underneath
 
-Sort and region filters live in the sticky header toolbar (`.browse-toolbar-row`), separate from category pivots and search. Active genre/region/search appear as removable chips in `#browseFilterBar`.
+### Search & filters
 
-### Scroll reveal
+| Input | Effect |
+|-------|--------|
+| `#q` search | Fuse.js across name, dev, publisher, regions, filenames |
+| Genre chip | `?genre=` + chip in filter bar |
+| Package chip | `?package=` (DLC mode) |
+| Filter drawer region | Filters featured + catalog; syncs Preferences |
+| Filter drawer sort | Re-orders grid; resets infinite scroll |
+| Filter bar chips | Per-filter dismiss + clear all |
 
-Sections, hero cards, genre chips, and grid tiles use `.reveal` + IntersectionObserver stagger (`src/reveal.ts`, `--reveal-delay`).
+Changing category or filters resets `loadedCount`, clears grid, re-observes sentinel.
 
-### Hover = preview, click = commit
+### Infinite scroll
 
-- **Hover tile**: scale + green border (metadata always visible via bottom scrim)
-- **Click tile**: open game page or shelf (commit)
-- **Hover hero**: stronger motion (lift + image zoom) — featured tier gets more motion budget
-- **`prefers-reduced-motion`**: suppresses tile scale transforms
+- `#gridSentinel` + `IntersectionObserver` with `400px` root margin
+- Batch size: `5 rows × column count` (games) or `40` (DLC list)
+- `#pager` shows **"Showing N of M"** — not numbered pagination
+- `.browse-grid.is-transitioning` brief fade when filter set changes
 
-### Focus stacking (z-index model)
+### Account flows
+
+| Action | Result |
+|--------|--------|
+| Sign In (guest trigger) | `#authMod` overlay |
+| Signed-in avatar | `.account-menu` dropdown |
+| Profile page | `body.profile-view`, `?profile=` |
+| Edit profile | `#accountSettingsMod` |
+| Preferences | `#setMod` (local theme/region/IA cookies) |
+| Add to collection | `#collectionMod` from game page |
+
+Downloads do **not** require sign-in.
+
+---
+
+## Scroll reveal
+
+`.reveal` + `IntersectionObserver` in `src/reveal.ts`:
+
+- Stagger via `--reveal-delay` (typically 35ms × index)
+- Applied to hero cards, genre chips, grid tiles (first row eager on initial load)
+- Disabled under `prefers-reduced-motion: reduce` — elements render immediately
+
+---
+
+## Hover = preview, click = commit
+
+| Element | Hover | Click |
+|---------|-------|-------|
+| Grid tile | Scale + border; hover overlay | Open game page |
+| Hero card | Lift + bg zoom | Open game page |
+| Addon list row | Border + chevron reveal | Open package modal |
+| Genre chip | Border brighten | Toggle filter |
+| Rec/media card | Border + slight lift | Navigate / lightbox |
+
+`prefers-reduced-motion: reduce` suppresses tile scale and hero motion.
+
+---
+
+## Z-index model
 
 | Layer | z-index | Purpose |
 |-------|---------|---------|
-| `#dimmer` | 1000 | Page dim |
-| `.browse-shelf` | 1001 | Inline panel |
-| Active/hover tile | 1002 | Above dimmer |
-| `#btt` | 2000 | FAB |
-| `.header` | 2500 | Always reachable chrome |
+| Game page bg | 0 | Fixed ambient art |
+| `#dimmer` (legacy) | 1000 | Unused in current flows |
+| Elevated tile hover | 1002 | Above siblings |
+| Filter tooltip | 100 | Score info tip |
+| `#btt` | 2000 | Back to top |
+| `.header` | 2500 | Sticky chrome |
 | `.overlay` | 3000 | Modals |
+| Filter drawer / dropdown open | 3500–4000 | Above header when open |
+| `.download-notice` | 5000 | Toast |
 
-When extending UI, preserve **modal > header > FAB > shelf > dimmer**.
+Rule: **toast > overlay > header > FAB > tiles**.
 
-### Download rows
+---
 
-Hover slides row **5px right** with green left border — Metro **list item engagement** cue (similar to Xbox download queue rows).
+## Download interaction
 
-### Settings theme preview
+1. User picks file in `#downloadMod` or `#packageMod`
+2. **Archive** → `window.open` to Internet Archive (pop-up blocker surfaces error notice)
+3. **Magnet** (Redump games only) → async MiNERVA hash lookup → magnet / torrent / rom page fallback
+4. `.download-notice` toast confirms start or reports error
+5. Button `.busy` state during async torrent path
 
-Clicking a `.dot` swatch sets `--green` live via `document.documentElement.style.setProperty` before save — immediate accent feedback like Xbox profile color pickers.
+Row hover: slide right 4px + green left border — Metro list engagement cue.
 
-### Gallery carousel
+---
 
-- Prev/next chevrons in bordered squares (`--r-sm`)
-- Dot indicators + thumb strip
-- Main image click opens full image in new tab
-- Keyboard-friendly button elements (`type="button"`, aria labels)
+## Theme preview
 
-### Recommendations row
-
-Horizontal scroll with **scroll-snap** — Xbox **row of tiles** pattern on Series home. Cards are compact landscape chips, not full portrait tiles.
+Clicking a `.swatch` in Preferences sets `--green` on `:root` immediately via JS; **Save** persists to `localStorage` (`x_th`). Matches Xbox profile accent picker behavior.
 
 ---
 
@@ -146,42 +186,49 @@ Horizontal scroll with **scroll-snap** — Xbox **row of tiles** pattern on Seri
 
 | State | Treatment |
 |-------|-----------|
-| Catalog loading | 20× `.browse-card.is-loading` shimmer in grid |
-| Zero filter results | `.browse-empty` panel with clear-filter actions |
-| No gallery images | Muted `#666` text |
-| No recommendations | `.rec-empty` muted copy |
-| Disabled downloads | `.dl-btn.dis` / `.s-item.dis` grayscale |
+| Initial catalog | Shimmer `.browse-card.is-loading` / `.addon-list-card.is-loading` |
+| Game page | Full `.game-page-skeleton` layout mirroring final structure |
+| Zero filter results | `.browse-empty` — icon, title, active chips, clear CTA |
+| No media / recs | `.game-media-empty`, `.game-rec-empty` muted copy |
+| Profile collections empty | `.profile-collections-empty` |
+| Disabled download | `.dl-btn.dis` grayscale |
 
-Keep empty states **quiet** — no illustrations, no bright colors.
-
----
-
-## Responsive behavior (`max-width: 900px`)
-
-Breakpoints compress the **living room → tablet** transition:
-
-| Component | Desktop | Mobile |
-|-----------|---------|--------|
-| Hero grid | 3 columns | Horizontal snap carousel (~85vw cards) |
-| Genre section | Below featured | Above featured (`.browse-discovery` order) |
-| Site hero | Full banner | Single column; compact mode on return visit |
-| Header padding | `--page-x: 60px` | `--page-x: 18px` |
-| Game page layout | Side-by-side | Stacked column |
-| Modal padding | 24px | 12px |
-| Cover rail | Vertical panel | Horizontal 220px strip |
-| Info grid | 2 columns | 1 column |
-| Gallery | 340px max height | 220px |
-| Rec items | ~30% width | 80% width |
-
-Blade loses `--r-lg` on small screens (`border-radius: 6px`) — tighter mobile sheet feel.
-
-Header horizontal padding uses `--page-x` (60px desktop, 18px mobile).
+Empty states stay quiet — no illustrations.
 
 ---
 
-## Sound & haptics
+## Responsive behavior
 
-None on web. Motion substitutes for console haptic/audio feedback — keep transitions short.
+Primary breakpoint: **`max-width: 900px`**
+
+| Component | Desktop | ≤ 900px |
+|-----------|---------|---------|
+| `--page-x` | 60px | 18px |
+| Site hero | Two-column grid | Single column; smaller cover fan |
+| Featured row | 3-column grid | Horizontal snap carousel (~85vw cards) |
+| Genre section | Below featured | **Above** featured (`order: -1`) |
+| Game page | Sidebar + main grid | Stacked column |
+| Game meta | 4 columns | 2 then 1 column |
+| Profile identity | 3-column grid | Stacked |
+| Overlay `--fit` | `min(680px, 100dvh - 32px)` | Full viewport padding with safe areas |
+| Account settings | Sidebar + form grid | Stacked |
+
+Secondary: **`max-width: 520px`** — genre chips 2-column.
+
+Header search stays in nav row; filter drawer drops below catalog title actions.
+
+---
+
+## URL-synced state
+
+| Param | Meaning |
+|-------|---------|
+| `?title=` | Open game page |
+| `?profile=` | Open profile hub |
+| `?genre=` | Active genre filter |
+| `?package=` | Add-on type filter (DLC mode) |
+
+Pivot category is not in URL. Clearing game/profile params returns to browse.
 
 ---
 
@@ -191,38 +238,42 @@ None on web. Motion substitutes for console haptic/audio feedback — keep trans
 
 - Use `--green` (or user theme) for all primary focus/selection
 - Keep chrome dark; let cover art supply color
-- Use uppercase + letter-spacing for nav labels only
-- Round interactive surfaces (`--r-md` minimum)
-- Add scrims under text on photos
-- Use scale transforms sparingly on **selected/hovered** elements only
+- Uppercase + letter-spacing for nav/section labels only
+- Round interactive surfaces (`--r-md` minimum on tap targets)
+- Scrim text on all photo-backed components
+- Match cover aspect ratio to `--t-w` / `--cover-visible-h`
 
 ### Don't
 
 - Introduce light theme without full token audit
-- Use drop shadows on every tile at rest (shadow = hover/focus reward)
-- Mix Discord blue into focus states (reserved for external CTA)
-- Use sharp 0px radius on new components (breaks Series Fluent blend)
+- Rest shadow on every tile — shadow is hover/reward
+- Use sharp 0px radius on new interactive surfaces
 - Replace Segoe UI with display fonts
-- Add skeuomorphic buttons (glass beads, metal textures) — flat Metro base with subtle depth only
+- Document `.browse-shelf` / `#dimmer` as active flows — they are legacy CSS
+- Add page-number pagination — catalog uses infinite scroll
 
 ---
 
-## Reference map: Xbox era → xbx.place
+## Reference map: Xbox concept → xbx.place
 
-| Xbox / Metro concept | xbx.place implementation |
-|----------------------|---------------------------|
-| Hub pivots | `.pivot` row |
-| Browse toolbar | `.browse-toolbar-row` (sort, region, chips) |
+| Xbox / Metro concept | Implementation |
+|----------------------|----------------|
+| Hub pivots | `.pivot` |
+| Store search | `#q` in header |
+| Refine / sort | `.browse-filter-drawer` |
+| Active filters | `#browseFilterBar` chips |
 | Game tile grid | `.browse-grid` / `.browse-card` |
-| Hero spotlight | `.browse-hero-grid` / `.browse-hero-card` |
-| Site marketing hero | `.site-hero` |
-| Genre filters | `.genre-grid` / `.genre-chip` |
-| Accent color profile | Settings theme dots → `--green` |
-| Related content row | `.browse-shelf`, `.rec-row` |
-| Spotlight dimming | `#dimmer` + `.browse-card--dim` |
-| Store detail page | `.game-page` full-page view |
-| Guide button / top | `#btt` FAB (web adaptation) |
-| Acrylic top bar | `.header` backdrop blur (`var(--header-frost)`) |
+| Hero row | `.browse-hero-grid` |
+| Genre row | `.genre-grid--rail` |
+| Marketing hero | `.site-hero` |
+| Title detail page | `#gamePage` / `.game-page` |
+| Download hub | `#downloadMod` |
+| Profile / clubs | `#profilePage`, collections |
+| Accent color | Preferences swatches → `--green` |
+| Related row | `.game-rec-scroll`, `.game-media-scroll` |
+| Guide / back to top | `#btt` |
+| Acrylic top bar | `.header` frost |
+| Achievement score badge | `.browse-tile-score--*` tiers |
 
 ---
 
@@ -230,8 +281,9 @@ None on web. Motion substitutes for console haptic/audio feedback — keep trans
 
 When adding a new surface:
 
-1. Pick surface color from the dark stack (`--tile` or `#252525`).
-2. Assign radius: md for controls, lg for panels.
-3. Wire focus/hover to `--green` 2px border or 4px underline.
-4. If overlay: use `.overlay` + `.blade` pattern and z-index table.
-5. Document new classes here and tokens in `tokens.css`.
+1. Pick surface color from the dark stack (`--tile` or `--surface-raised`).
+2. Radius: `--r-md` controls, `--r-lg` panels.
+3. Wire hover/focus to 2px `--green` border or 4px underline.
+4. If modal: use `.overlay` + `.game-modal-page-shell`; prefer `.overlay--fit` for pickers.
+5. If photo-backed: add bottom scrim before placing text.
+6. Update this doc, [components.md](./components.md), and [tokens.css](./tokens.css).

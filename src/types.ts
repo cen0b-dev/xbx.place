@@ -3,6 +3,8 @@ export type DownloadEntry = {
   url: string;
   type?: string;
   label?: string;
+  /** Parsed from filenames like "(v4)" for title update sorting. */
+  updateVersion?: number;
   sizeBytes?: number;
   /** Where the file is hosted, e.g. archive.org */
   source?: string;
