@@ -8,6 +8,3 @@ dist/
 .env.development.local
 .env.test.local
 .env.production.local
-
-# Wrangler (local CF Worker deploy metadata)
-workers/download-proxy/.wrangler/

@@ -13,7 +13,7 @@ import {
 import { bindCollectionUi, closeCollectionModal, setActiveGameForCollections } from "./collections-ui";
 import { bgUrl, coverUrl, loadTitles, syncGameModalBackground } from "./data";
 import { formatDownloadDisplay } from "./download-label";
-import { formatDownloadProgress, requestDownload } from "./downloads";
+import { formatDownloadProgress, startDownload } from "./downloads";
 import {
   bindFormControlGlobals,
   dropdownMarkup,
@@ -48,13 +48,6 @@ const DEFAULT_TITLE = `${SITE_NAME} - Xbox 360 Games and DLC Archive`;
 const DEFAULT_DESCRIPTION =
   "Browse Xbox 360 games, updates, and DLC in one fast catalog with title details, artwork, and downloadable archives.";
 const BASE_URL = import.meta.env.BASE_URL;
-
-/** Cloudflare Worker (or override via VITE_DOWNLOAD_PROXY_ORIGIN). */
-function downloadProxyBase(): string | null {
-  const fromEnv = (import.meta.env.VITE_DOWNLOAD_PROXY_ORIGIN as string | undefined)?.trim();
-  if (!fromEnv) return null;
-  return fromEnv.replace(/\/+$/, "");
-}
 
 const root = document.querySelector<HTMLDivElement>("#app");
 
@@ -125,45 +118,20 @@ function scrollBelowHeader(element: HTMLElement | null): void {
   window.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
 }
 
-function proxiedUrl(download: DownloadEntry): string | null {
-  const base = downloadProxyBase();
-  if (!base) return null;
-  return `${base}/download?key=${encodeURIComponent(download.filename)}`;
-}
-
-/** Xbox marketplace screenshots are http-only; proxy via worker on https pages. */
 function galleryImageUrl(url: string): string {
-  const base = downloadProxyBase();
-  if (!base || !url.startsWith("http://")) return url;
-  try {
-    const host = new URL(url).hostname.toLowerCase();
-    if (host === "download.xbox.com") {
-      return `${base}/image?url=${encodeURIComponent(url)}`;
-    }
-  } catch {
-    /* ignore */
+  if (url.startsWith("http://download.xbox.com/")) {
+    return `https://${url.slice("http://".length)}`;
   }
   return url;
 }
 
-async function handleDownload(target: string, filename: string, button?: HTMLButtonElement): Promise<void> {
+function handleDownload(sourceUrl: string, filename: string, button?: HTMLButtonElement): void {
   if (button) {
     button.disabled = true;
     button.classList.add("busy");
   }
-
   try {
-    const result = await requestDownload(target, filename, (progress) => {
-      showDownloadNotice(formatDownloadProgress(progress), false);
-    });
-    if (result.status === "auth_required") {
-      openAuthModal("You have already used your one guest download. Sign in or create a free account to download more files.");
-      return;
-    }
-    if (result.status === "blocked") {
-      showDownloadNotice(result.message, true);
-      return;
-    }
+    startDownload(sourceUrl, filename);
     showDownloadNotice(formatDownloadProgress({ loaded: 0, total: 0 }), false);
   } finally {
     if (button) {
@@ -675,18 +643,15 @@ function renderDownloadList(game: TitleEntry): void {
 
   for (const dl of downloads) {
     if (!dl.url) continue;
-    const target = proxiedUrl(dl);
     const button = document.createElement("button");
     button.type = "button";
-    button.className = target ? "dl-btn" : "dl-btn dis";
+    button.className = "dl-btn";
     const display = formatDownloadDisplay(dl.label ?? dl.filename);
     const meta = display.meta ? `<div class="dl-meta">${display.meta}</div>` : "";
     button.innerHTML = `<div><div class="dl-type">${(dl.type ?? "GAME").toUpperCase()}</div><b>${display.title}</b>${meta}</div><span><i class="fa-solid fa-download"></i></span>`;
-    if (target) {
-      button.addEventListener("click", (event) => {
-        void handleDownload(target, dl.filename, event.currentTarget as HTMLButtonElement);
-      });
-    }
+    button.addEventListener("click", (event) => {
+      handleDownload(dl.url, dl.filename, event.currentTarget as HTMLButtonElement);
+    });
     dlList.appendChild(button);
   }
 }
@@ -1298,16 +1263,14 @@ function openShelf(card: HTMLElement, game: TitleEntry): void {
   sGrid.innerHTML = "";
   const items = game.downloads.filter((d) => d.type === "DLC" || d.type === "Update");
   for (const d of items) {
-    const target = d.url ? proxiedUrl(d) : null;
+    if (!d.url) continue;
     const button = document.createElement("button");
     button.type = "button";
-    button.className = target ? "s-item" : "s-item dis";
-    if (target) {
-      button.addEventListener("click", (event) => {
-        event.stopPropagation();
-        void handleDownload(target, d.filename, event.currentTarget as HTMLButtonElement);
-      });
-    }
+    button.className = "s-item";
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      handleDownload(d.url, d.filename, event.currentTarget as HTMLButtonElement);
+    });
     const display = formatDownloadDisplay(d.label ?? d.filename);
     const meta = display.meta ? `<div class="dl-meta">${display.meta}</div>` : "";
     button.innerHTML = `<div><div style="font-size:0.7rem;color:#888">${d.type === "Update" ? "UPDATE" : "ADDON"}</div><b>${display.title}</b>${meta}</div><span style="color:var(--green)"><i class="fa-solid fa-download"></i></span>`;

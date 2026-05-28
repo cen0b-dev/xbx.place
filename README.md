@@ -1,6 +1,6 @@
 # xbx.place
 
-Static Vite + TypeScript frontend for browsing Xbox 360 titles, with download links routed through a proxy endpoint (`/download?key=...`) so raw upstream URLs are not exposed in the UI.
+Static Vite + TypeScript frontend for browsing Xbox 360 titles. Download buttons stream files via the [Wayback Machine](https://web.archive.org/) without exposing raw archive URLs in the page markup (no `href` on download controls).
 
 ## Requirements
 
@@ -30,8 +30,6 @@ Or start Vite alone:
 ```bash
 npm run dev
 ```
-
-Downloads go through the Cloudflare Worker (`VITE_DOWNLOAD_PROXY_ORIGIN` in `vite.config.ts` by default). No local proxy required.
 
 ## Accounts
 
@@ -91,36 +89,9 @@ This runs `build:data` (`build:x360db-catalog`) before `tsc --noEmit` and `vite 
 Deployment is handled by `.github/workflows/deploy-github-pages.yml` on push to `main`.
 
 1. In repository settings, set Pages source to **GitHub Actions**.
-2. Add Actions variable `VITE_DOWNLOAD_PROXY_ORIGIN` to your production proxy URL (for example, a Cloudflare Worker URL).
+2. Add Actions variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` if you use accounts.
 3. Push to `main`.
 
-## Proxy options (no paid service required)
+## Downloads
 
-GitHub Pages is static and cannot run Node, so production needs an external proxy endpoint if you want to keep raw URLs hidden.
-
-### Option A: Free Cloudflare Worker (recommended for Pages)
-
-Files live in `workers/download-proxy/`.
-
-1. Set `MASTER_INDEX_URL` in `workers/download-proxy/wrangler.toml` to your deployed `master_index.json`.
-2. Deploy:
-
-```bash
-cd workers/download-proxy
-npx wrangler deploy
-```
-
-3. Configure secrets/vars in Worker:
-   - `IA_COOKIE_POOL` (or `IA_COOKIE_POOL_B64` + `IA_COOKIE_B64_ROUNDS`)
-   - optional fallback `IA_LOGGED_IN_USER` + `IA_LOGGED_IN_SIG`
-4. Set repo Actions variable `VITE_DOWNLOAD_PROXY_ORIGIN` to the Worker URL and redeploy Pages.
-
-### Option B: Self-hosted Node proxy (optional)
-
-`npm run proxy` remains available if you want to self-host instead of Cloudflare. Set `VITE_DOWNLOAD_PROXY_ORIGIN` to that server origin.
-
-## Notes
-
-- Guest users get one download; signed-in Supabase users get unlimited downloads (see `supabase/README.md`).
-- Cookie values are sanitized/canonicalized before building `Cookie` headers.
-- IA session cookies (`logged-in-sig`) expire; rotate/reseed your env secrets as needed.
+Clicking a download row opens the file through `https://web.archive.org/web/0id_/…` in a hidden iframe. Buttons are plain `<button>` elements (no link URL in the DOM), so hovering does not reveal the Wayback or Internet Archive address in the status bar.

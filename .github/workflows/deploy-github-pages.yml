@@ -26,9 +26,6 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          # GitHub repo → Settings → Secrets and variables → Actions → Variables
-          # Set to your Cloudflare Worker URL, e.g. https://xbx-place-download-proxy.youraccount.workers.dev
-          VITE_DOWNLOAD_PROXY_ORIGIN: ${{ vars.VITE_DOWNLOAD_PROXY_ORIGIN }}
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/upload-pages-artifact@v3

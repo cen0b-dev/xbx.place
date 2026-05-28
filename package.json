@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "dev:all": "node scripts/dev-all.mjs",
-    "proxy": "tsx server/proxy.example.ts",
     "supabase:watch": "node scripts/supabase-watch.mjs",
     "supabase:push": "npx supabase db push",
     "supabase:deploy": "bash scripts/supabase-push.sh",

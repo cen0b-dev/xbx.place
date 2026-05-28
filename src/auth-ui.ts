@@ -75,8 +75,8 @@ function setAuthMode(mode: AuthMode): void {
   if (subtitle) {
     subtitle.textContent =
       mode === "sign-in"
-        ? "Access unlimited downloads with your xbx.place account."
-        : "Join free — one account for downloads, gamerpic, and profile.";
+        ? "Sign in to save your gamertag, gamerpic, and collections."
+        : "Join free — gamertag, gamerpic, profile, and game collections.";
   }
   if (submit) {
     submit.textContent = mode === "sign-in" ? "Sign In" : "Create Account";
@@ -113,7 +113,7 @@ export function openAuthModal(reason?: string): void {
     body.textContent = reason;
   } else if (body) {
     body.textContent =
-      "Guest downloads are limited to one file. Sign in or create a free account for unlimited downloads.";
+      "Sign in or create a free account to save your profile, gamerpic, and game collections.";
   }
   setAuthError(null);
   setAuthMode("sign-in");
@@ -911,11 +911,11 @@ export function authModalMarkup(): string {
           <header class="game-modal-header">
             <div class="game-modal-eyebrow">xbx.place account</div>
             <h2 class="game-modal-title" id="auth-title">Sign In</h2>
-            <p class="game-modal-sub" id="auth-subtitle">Access unlimited downloads with your xbx.place account.</p>
+            <p class="game-modal-sub" id="auth-subtitle">Sign in to your xbx.place account.</p>
           </header>
           <section class="game-modal-section">
             <p id="auth-body" class="game-modal-lead">
-              Guest downloads are limited to one file. Sign in or create a free account for unlimited downloads.
+              Sign in or create a free account to save your profile, gamerpic, and game collections.
             </p>
             <div class="game-modal-panel game-modal-panel--stack">
               <div class="auth-pivots">
@@ -933,8 +933,8 @@ export function authModalMarkup(): string {
                 </div>
                 <div id="auth-error" class="auth-error hidden" role="alert"></div>
                 <ul class="auth-perks" aria-label="Account benefits">
-                  <li><i class="fa-solid fa-download"></i> Unlimited archive downloads</li>
-                  <li><i class="fa-solid fa-id-badge"></i> Gamertag, gamerpic &amp; collections</li>
+                  <li><i class="fa-solid fa-id-badge"></i> Gamertag, gamerpic &amp; profile banner</li>
+                  <li><i class="fa-solid fa-bookmark"></i> Public and private game collections</li>
                   <li><i class="fa-solid fa-cloud"></i> Syncs across devices</li>
                 </ul>
               </form>
