@@ -3,6 +3,12 @@ export type DownloadEntry = {
   url: string;
   type?: string;
   label?: string;
+  sizeBytes?: number;
+  /** Where the file is hosted, e.g. archive.org */
+  source?: string;
+  /** Faster mirror (MiNERVA rom page with torrent + magnet). */
+  fastUrl?: string;
+  fastSource?: string;
 };
 
 export type TitleEntry = {

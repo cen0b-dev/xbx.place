@@ -1,21 +1,21 @@
-export type DownloadProgress = {
-  loaded: number;
-  total: number;
-};
+export type DownloadStartResult = { ok: true } | { ok: false; error: string };
 
-function triggerDownload(url: string): void {
-  const frame = document.createElement("iframe");
-  frame.hidden = true;
-  frame.src = url;
-  document.body.appendChild(frame);
-  window.setTimeout(() => frame.remove(), 120_000);
+export function startDownload(sourceUrl: string, _filename: string): DownloadStartResult {
+  const url = sourceUrl.trim();
+  if (!url) {
+    return { ok: false, error: "No download URL for this file." };
+  }
+
+  const opened = window.open(url, "_blank", "noopener,noreferrer");
+  if (!opened) {
+    return {
+      ok: false,
+      error: "Pop-up blocked. Allow pop-ups for this site and try again."
+    };
+  }
+  return { ok: true };
 }
 
-/** Stream from the catalog URL (archive.org). Wayback embed returns 403 in iframes. */
-export function startDownload(sourceUrl: string, _filename: string): void {
-  triggerDownload(sourceUrl.trim());
-}
-
-export function formatDownloadProgress(_progress: DownloadProgress): string {
-  return "Download started. Open your browser downloads (Chrome: ⌘+Shift+J). Large X360 files can take a while to appear.";
+export function formatDownloadNotice(): string {
+  return "Download started.";
 }

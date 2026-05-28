@@ -13,7 +13,15 @@ import {
 import { bindCollectionUi, closeCollectionModal, setActiveGameForCollections } from "./collections-ui";
 import { bgUrl, coverUrl, loadTitles, syncGameModalBackground } from "./data";
 import { formatDownloadDisplay } from "./download-label";
-import { formatDownloadProgress, startDownload } from "./downloads";
+import { startMinervaTorrentDownload } from "./minerva-torrent";
+import { formatDownloadNotice, startDownload } from "./downloads";
+import {
+  buildIaBookmarklet,
+  getIaCookiePool,
+  parseIaCookiePoolJson,
+  pickIaCookiePair,
+  setIaCookiePool
+} from "./ia-cookie";
 import { galleryImageUrl } from "./gallery-image";
 import {
   bindFormControlGlobals,
@@ -125,14 +133,45 @@ function handleDownload(sourceUrl: string, filename: string, button?: HTMLButton
     button.classList.add("busy");
   }
   try {
-    startDownload(sourceUrl, filename);
-    showDownloadNotice(formatDownloadProgress({ loaded: 0, total: 0 }), false);
+    const result = startDownload(sourceUrl, filename);
+    if (!result.ok) {
+      showDownloadNotice(result.error, true);
+      return;
+    }
+    showDownloadNotice(formatDownloadNotice(), false);
   } finally {
     if (button) {
       button.disabled = false;
       button.classList.remove("busy");
     }
   }
+}
+
+async function handleTorrentDownload(
+  dl: DownloadEntry,
+  button?: HTMLButtonElement
+): Promise<void> {
+  if (button) {
+    button.disabled = true;
+    button.classList.add("busy");
+  }
+  try {
+    const result = await startMinervaTorrentDownload(dl.filename, dl.fastUrl);
+    if (!result.ok) {
+      showDownloadNotice(result.error, true);
+      return;
+    }
+    showDownloadNotice("Download started.", false);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.classList.remove("busy");
+    }
+  }
+}
+
+function downloadTypeLabel(dl: DownloadEntry): string {
+  return (dl.type ?? "Game").toUpperCase();
 }
 
 let downloadNoticeTimer = 0;
@@ -413,6 +452,16 @@ function renderShell(): void {
                   ${dropdownMarkup("reg", REGION_OPTIONS, "all", "ui-dropdown--block")}
                 </div>
               </div>
+              <div class="settings-option-row settings-option-row--stack">
+                <div class="settings-option-copy">
+                  <span class="settings-option-label">Download session</span>
+                  <span class="settings-option-hint">Optional JSON <code>[{"user":"…","sig":"…"}]</code>. Save, then use <strong>Apply session</strong> once before downloading.</span>
+                </div>
+                <div class="settings-option-control settings-option-control--full">
+                  <textarea class="settings-text-input settings-text-input--area" id="ia-cookie-pool" rows="4" placeholder='[{"user":"…","sig":"…"}]' spellcheck="false"></textarea>
+                  <a class="settings-link" id="ia-bookmarklet-link" href="#" hidden>Apply session</a>
+                </div>
+              </div>
             </div>
           </section>
           <div class="game-modal-footer">
@@ -637,16 +686,32 @@ function renderDownloadList(game: TitleEntry): void {
 
   for (const dl of downloads) {
     if (!dl.url) continue;
+    const display = formatDownloadDisplay(dl.label ?? dl.filename);
+    const meta = display.meta ? `<div class="dl-meta">${display.meta}</div>` : "";
+    const row = document.createElement("div");
+    row.className = "dl-btn-row";
+
     const button = document.createElement("button");
     button.type = "button";
     button.className = "dl-btn";
-    const display = formatDownloadDisplay(dl.label ?? dl.filename);
-    const meta = display.meta ? `<div class="dl-meta">${display.meta}</div>` : "";
-    button.innerHTML = `<div><div class="dl-type">${(dl.type ?? "GAME").toUpperCase()}</div><b>${display.title}</b>${meta}</div><span><i class="fa-solid fa-download"></i></span>`;
+    button.innerHTML = `<div><div class="dl-type">${downloadTypeLabel(dl)}</div><b>${display.title}</b>${meta}</div><span><i class="fa-solid fa-download"></i></span>`;
     button.addEventListener("click", (event) => {
       handleDownload(dl.url, dl.filename, event.currentTarget as HTMLButtonElement);
     });
-    dlList.appendChild(button);
+
+    row.append(button);
+    if (dl.fastUrl) {
+      const torrentBtn = document.createElement("button");
+      torrentBtn.type = "button";
+      torrentBtn.className = "dl-btn-side dl-btn-side--torrent";
+      torrentBtn.title = "Faster download";
+      torrentBtn.innerHTML = '<i class="fa-solid fa-magnet" aria-hidden="true"></i>';
+      torrentBtn.addEventListener("click", (event) => {
+        void handleTorrentDownload(dl, event.currentTarget as HTMLButtonElement);
+      });
+      row.append(torrentBtn);
+    }
+    dlList.appendChild(row);
   }
 }
 
@@ -951,7 +1016,7 @@ function closeSettings(): void {
 function isGameEntry(entry: TitleEntry): boolean {
   return (
     entry.downloads.length === 0 ||
-    entry.downloads.some((d) => d.type === "Game" || !d.type || d.type === "ROM" || d.type === "Mirror")
+    entry.downloads.some((d) => d.type === "Game" || !d.type || d.type === "ROM")
   );
 }
 
@@ -1490,7 +1555,7 @@ function applyFilters(): void {
     const match = category === "DLC" ? nameMatch || dlcMatch : nameMatch;
     const catMatch =
       category === "Game"
-        ? g.downloads.length === 0 || g.downloads.some((d) => d.type === "Game" || !d.type || d.type === "ROM" || d.type === "Mirror")
+        ? g.downloads.length === 0 || g.downloads.some((d) => d.type === "Game" || !d.type || d.type === "ROM")
         : g.downloads.some((d) => d.type === "DLC" || d.type === "Update");
     const regMatch =
       settings.r === "all" || (g.regions ? g.regions.includes(settings.r) || g.regions.includes("World") : false);
@@ -1553,12 +1618,41 @@ function setupSettings(): void {
   }
   setDropdownValue("reg", settings.r);
   setDropdownValue("browseReg", settings.r);
+  syncIaCookieSettingsUi();
+}
+
+function syncIaCookieSettingsUi(): void {
+  const poolInput = document.getElementById("ia-cookie-pool") as HTMLTextAreaElement | null;
+  const bookmarklet = document.getElementById("ia-bookmarklet-link") as HTMLAnchorElement | null;
+  const pool = getIaCookiePool();
+  if (poolInput) {
+    const stored = localStorage.getItem("x_ia_cookie_pool");
+    poolInput.value = stored ?? (pool.length ? JSON.stringify(pool, null, 2) : "");
+  }
+  const pair = pickIaCookiePair();
+  if (bookmarklet && pair) {
+    bookmarklet.hidden = false;
+    bookmarklet.href = buildIaBookmarklet(pair);
+    bookmarklet.textContent = "Apply session";
+  } else if (bookmarklet) {
+    bookmarklet.hidden = true;
+  }
 }
 
 function saveSettings(): void {
   settings.r = getDropdownValue("reg") || "all";
   window.localStorage.setItem("x_th", settings.th);
   window.localStorage.setItem("x_r", settings.r);
+  const poolInput = document.getElementById("ia-cookie-pool") as HTMLTextAreaElement | null;
+  if (poolInput) {
+    const parsed = parseIaCookiePoolJson(poolInput.value);
+    if (poolInput.value.trim() && !parsed.length) {
+      showDownloadNotice("Session JSON is invalid. Use [{\"user\":\"…\",\"sig\":\"…\"}].", true);
+      return;
+    }
+    setIaCookiePool(poolInput.value.trim() ? poolInput.value : "");
+    syncIaCookieSettingsUi();
+  }
   setDropdownValue("browseReg", settings.r);
   closeSettings();
   renderHeroRows();

@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { minervaRomUrl } from "./minerva-url.mjs";
 
 const ROOT = process.cwd();
 const DATA_DIR = path.join(ROOT, "data");
@@ -42,26 +43,49 @@ async function readIaMap() {
   try {
     const raw = await readFile(IA_MAP_PATH, "utf8");
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") {
-      return parsed;
-    }
+    if (parsed && typeof parsed === "object") return parsed;
   } catch {
-    // optional
+    console.warn(`Missing ${IA_MAP_PATH} — run npm run build:ia-map`);
   }
   return {};
+}
+
+function buildDownloadEntry(filename, archiveUrl) {
+  if (typeof archiveUrl !== "string" || !archiveUrl) return null;
+  const label = filename.replace(/\.(zip|iso|7z)$/i, "");
+  return {
+    filename,
+    label,
+    url: archiveUrl,
+    type: "Game",
+    source: "archive.org",
+    fastUrl: minervaRomUrl(filename),
+    fastSource: "minerva-archive.org"
+  };
+}
+
+function buildIaIndex(map) {
+  const index = new Map();
+  for (const [filename, archiveUrl] of Object.entries(map)) {
+    if (typeof filename !== "string") continue;
+    const dl = buildDownloadEntry(filename, archiveUrl);
+    if (!dl) continue;
+    const normalized = normalizeForMatch(filename);
+    if (!normalized) continue;
+    const list = index.get(normalized) ?? [];
+    list.push(dl);
+    index.set(normalized, list);
+  }
+  return index;
 }
 
 async function fetchX360dbGames() {
   const response = await fetch(X360DB_GAMES_URL, {
     headers: { "user-agent": "xbx.place x360db builder" }
   });
-  if (!response.ok) {
-    throw new Error(`Failed fetching x360db games: ${response.status}`);
-  }
+  if (!response.ok) throw new Error(`Failed fetching x360db games: ${response.status}`);
   const parsed = await response.json();
-  if (!Array.isArray(parsed)) {
-    throw new Error("Unexpected x360db games format");
-  }
+  if (!Array.isArray(parsed)) throw new Error("Unexpected x360db games format");
   return parsed;
 }
 
@@ -81,8 +105,7 @@ async function fetchTitleInfoMap(titleIds) {
     const results = await Promise.all(
       batch.map(async (id) => {
         try {
-          const info = await fetchTitleInfo(id);
-          return [id, info];
+          return [id, await fetchTitleInfo(id)];
         } catch {
           return [id, null];
         }
@@ -93,24 +116,6 @@ async function fetchTitleInfoMap(titleIds) {
     }
   }
   return out;
-}
-
-function buildIaIndex(iaMap) {
-  const index = new Map();
-  for (const [filename, url] of Object.entries(iaMap)) {
-    if (typeof filename !== "string" || typeof url !== "string") continue;
-    const normalized = normalizeForMatch(filename);
-    if (!normalized) continue;
-    const list = index.get(normalized) ?? [];
-    list.push({
-      filename,
-      label: filename.replace(/\.(zip|iso|7z)$/i, ""),
-      url,
-      type: "Game"
-    });
-    index.set(normalized, list);
-  }
-  return index;
 }
 
 function mergeRegions(downloads) {
@@ -138,15 +143,14 @@ async function main() {
 
   const [games, iaMap] = await Promise.all([fetchX360dbGames(), readIaMap()]);
   const iaIndex = buildIaIndex(iaMap);
+
   const detailIds = (REDUMP_ONLY
     ? games.filter((g) => iaIndex.has(normalizeForMatch(typeof g.title === "string" ? g.title : "")))
     : games
   )
     .map((g) => (typeof g.id === "string" ? g.id : ""))
     .filter(Boolean);
-  const infoById = await fetchTitleInfoMap(
-    detailIds
-  );
+  const infoById = await fetchTitleInfoMap(detailIds);
 
   const titles = games.map((game) => {
     const titleId = typeof game.id === "string" ? game.id : "";
@@ -168,9 +172,7 @@ async function main() {
       genre: Array.isArray(info?.genre) ? info.genre : [],
       artwork: Array.isArray(info?.artwork?.gallery) ? { gallery: info.artwork.gallery } : undefined,
       downloads,
-      metadata: {
-        source: "x360db"
-      }
+      metadata: { source: "x360db" }
     };
   });
 
@@ -178,7 +180,7 @@ async function main() {
 
   const canonical = {
     generatedAt: new Date().toISOString(),
-    source: "x360db + ia-file-map",
+    source: "x360db + ia-file-map (archive.org) + minerva-archive.org rom pages",
     totalTitles: filteredTitles.length,
     titlesWithDownloads: titles.filter((t) => t.downloads.length > 0).length,
     titlesWithRatings: filteredTitles.filter((t) => typeof t.rating === "number").length,
@@ -189,7 +191,7 @@ async function main() {
   await writeFile(OUTPUT_MASTER, `${JSON.stringify(filteredTitles, null, 2)}\n`, "utf8");
   await writeFile(OUTPUT_CANONICAL, `${JSON.stringify(canonical, null, 2)}\n`, "utf8");
   console.log(
-    `Wrote ${filteredTitles.length} x360db titles (${canonical.titlesWithDownloads} matched IA downloads, redumpOnly=${REDUMP_ONLY}) to ${OUTPUT_MASTER}`
+    `Wrote ${filteredTitles.length} titles (${canonical.titlesWithDownloads} with Archive + MiNERVA links, redumpOnly=${REDUMP_ONLY})`
   );
 }
 

@@ -9,10 +9,9 @@
     "supabase:watch": "node scripts/supabase-watch.mjs",
     "supabase:push": "npx supabase db push",
     "supabase:deploy": "bash scripts/supabase-push.sh",
-    "sync:romsworlds": "node scripts/sync-romsworlds.mjs",
+    "build:ia-map": "node scripts/build-ia-map.mjs",
     "build:x360db-catalog": "node scripts/build-x360db-catalog.mjs",
     "build:data": "npm run build:x360db-catalog",
-    "build:ia-map": "node scripts/build-ia-map.mjs",
     "build": "npm run build:data && tsc --noEmit && vite build",
     "preview": "vite preview"
   },
