@@ -6,20 +6,14 @@ Static Vite + TypeScript catalog for Xbox 360 titles (x360db metadata). Each fil
 
 | Button | Host | Notes |
 |--------|------|--------|
-| **Archive** | `archive.org/download/…` | Optional Cloudflare Worker checks auth, returns the URL; browser downloads directly from Archive. |
+| **Archive** | Worker stream URL | Worker resolves IA CDN with `IA_COOKIE_POOL`, then pipes the file via `/download/file` (no user cookies). |
 | **MiNERVA** | `minerva-archive.org/rom/…` | Fast path: use **Magnet** or **Torrent** on that page. |
 
 xbx.place does **not** stream ROM bytes through Cloudflare Workers.
 
-### Internet Archive cookies
+### Internet Archive cookies (server-only)
 
-Browsers cannot send custom `Cookie` headers to Archive from xbx.place (forbidden + cross-origin). To use logged-in IA accounts:
-
-1. **Preferences** → paste `IA_COOKIE_POOL` JSON (`logged-in-user` + `logged-in-sig` from DevTools on archive.org).
-2. Save, then use **Apply IA login (bookmarklet)** while on [archive.org](https://archive.org/) (drag to bookmarks bar or click once).
-3. Return to xbx.place and click **Archive** — the browser sends those cookies on `archive.org`.
-
-Optional: set `VITE_IA_COOKIE_POOL` in `.env.local` as a default pool for local dev.
+Logged-in IA accounts are configured in **`.env.local`** (`IA_COOKIE_POOL` or `IA_LOGGED_IN_USER` / `IA_LOGGED_IN_SIG`) for `npm run build:ia-map` and optional Worker secrets (`wrangler secret put IA_COOKIE_POOL`). Users never paste or apply cookies in the app.
 
 ## Data pipeline
 

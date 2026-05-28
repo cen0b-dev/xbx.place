@@ -16,13 +16,6 @@ import { bgUrl, coverUrl, loadTitles, syncGameModalBackground } from "./data";
 import { formatDownloadDisplay } from "./download-label";
 import { startMinervaTorrentDownload } from "./minerva-torrent";
 import { formatDownloadProgress, requestDownload } from "./downloads";
-import {
-  buildIaBookmarklet,
-  getIaCookiePool,
-  parseIaCookiePoolJson,
-  pickIaCookiePair,
-  setIaCookiePool
-} from "./ia-cookie";
 import { galleryImageUrl } from "./gallery-image";
 import {
   ADDON_TYPE_FILTERS,
@@ -543,16 +536,6 @@ function renderShell(): void {
                 </div>
                 <div class="settings-option-control settings-option-control--dropdown">
                   ${dropdownMarkup("reg", REGION_OPTIONS, "all", "ui-dropdown--block")}
-                </div>
-              </div>
-              <div class="settings-option-row settings-option-row--stack">
-                <div class="settings-option-copy">
-                  <span class="settings-option-label">Download session</span>
-                  <span class="settings-option-hint">Optional JSON <code>[{"user":"…","sig":"…"}]</code>. Save, then use <strong>Apply session</strong> once before downloading.</span>
-                </div>
-                <div class="settings-option-control settings-option-control--full">
-                  <textarea class="settings-text-input settings-text-input--area" id="ia-cookie-pool" rows="4" placeholder='[{"user":"…","sig":"…"}]' spellcheck="false"></textarea>
-                  <a class="settings-link" id="ia-bookmarklet-link" href="#" hidden>Apply session</a>
                 </div>
               </div>
             </div>
@@ -2061,41 +2044,12 @@ function setupSettings(): void {
   }
   setDropdownValue("reg", settings.r);
   setDropdownValue("browseReg", settings.r);
-  syncIaCookieSettingsUi();
-}
-
-function syncIaCookieSettingsUi(): void {
-  const poolInput = document.getElementById("ia-cookie-pool") as HTMLTextAreaElement | null;
-  const bookmarklet = document.getElementById("ia-bookmarklet-link") as HTMLAnchorElement | null;
-  const pool = getIaCookiePool();
-  if (poolInput) {
-    const stored = localStorage.getItem("x_ia_cookie_pool");
-    poolInput.value = stored ?? (pool.length ? JSON.stringify(pool, null, 2) : "");
-  }
-  const pair = pickIaCookiePair();
-  if (bookmarklet && pair) {
-    bookmarklet.hidden = false;
-    bookmarklet.href = buildIaBookmarklet(pair);
-    bookmarklet.textContent = "Apply session";
-  } else if (bookmarklet) {
-    bookmarklet.hidden = true;
-  }
 }
 
 function saveSettings(): void {
   settings.r = getDropdownValue("reg") || "all";
   window.localStorage.setItem("x_th", settings.th);
   window.localStorage.setItem("x_r", settings.r);
-  const poolInput = document.getElementById("ia-cookie-pool") as HTMLTextAreaElement | null;
-  if (poolInput) {
-    const parsed = parseIaCookiePoolJson(poolInput.value);
-    if (poolInput.value.trim() && !parsed.length) {
-      showDownloadNotice("Session JSON is invalid. Use [{\"user\":\"…\",\"sig\":\"…\"}].", true);
-      return;
-    }
-    setIaCookiePool(poolInput.value.trim() ? poolInput.value : "");
-    syncIaCookieSettingsUi();
-  }
   setDropdownValue("browseReg", settings.r);
   closeSettings();
   renderHeroRows();

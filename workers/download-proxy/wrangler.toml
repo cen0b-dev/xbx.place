@@ -16,3 +16,6 @@ MASTER_INDEX_URL = "https://xbx.place/master_index.json"
 #   npx wrangler secret put SUPABASE_URL
 #   npx wrangler secret put SUPABASE_ANON_KEY
 #   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+
+# IA cookie pool (optional, same JSON as .env.local — for build:ia-map / ops, not user-facing):
+#   npx wrangler secret put IA_COOKIE_POOL

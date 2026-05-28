@@ -16,7 +16,10 @@ export function decodeBase64Rounds(raw, rounds = 1) {
   const count = Number.isInteger(rounds) && rounds > 0 ? rounds : 1;
   try {
     for (let i = 0; i < count; i += 1) {
-      decoded = Buffer.from(decoded, "base64").toString("utf8");
+      decoded =
+        typeof Buffer !== "undefined"
+          ? Buffer.from(decoded, "base64").toString("utf8")
+          : atob(decoded);
     }
     return decoded;
   } catch {
@@ -44,6 +47,30 @@ export function parseIaCookiePoolJson(raw) {
   } catch {
     return [];
   }
+}
+
+export function pickIaCookiePair(pool) {
+  if (!Array.isArray(pool) || !pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)] ?? null;
+}
+
+export function parseIaCookiePoolFromEnv(env) {
+  const rounds = Number.parseInt(env?.IA_COOKIE_B64_ROUNDS ?? "1", 10);
+  const decodedPool = decodeBase64Rounds(env?.IA_COOKIE_POOL_B64, rounds);
+  const poolJson =
+    typeof env?.IA_COOKIE_POOL === "string" && env.IA_COOKIE_POOL.trim()
+      ? env.IA_COOKIE_POOL.trim()
+      : typeof decodedPool === "string"
+        ? decodedPool
+        : "";
+  if (poolJson) return parseIaCookiePoolJson(poolJson);
+  const user = env?.IA_LOGGED_IN_USER;
+  const sig = env?.IA_LOGGED_IN_SIG;
+  if (typeof user === "string" && typeof sig === "string") {
+    const parsed = parseIaCookiePoolJson(JSON.stringify([{ user, sig }]));
+    if (parsed.length) return parsed;
+  }
+  return [];
 }
 
 export function buildIaCookieHeader(pair) {

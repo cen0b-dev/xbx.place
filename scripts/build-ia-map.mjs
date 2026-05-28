@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { buildIaCookieHeader, decodeBase64Rounds, parseIaCookiePoolJson } from "./ia-cookie-pool.mjs";
+import { buildIaCookieHeader, parseIaCookiePoolFromEnv } from "./ia-cookie-pool.mjs";
 
 const ROOT = process.cwd();
 const MASTER_INDEX_PATH = path.join(ROOT, "public", "master_index.json");
@@ -44,18 +44,14 @@ function resolveIaCookiePair(envMap) {
   return { user, sig };
 }
 
-function getDecodeRounds(envMap) {
-  const raw = process.env.IA_COOKIE_B64_ROUNDS ?? envMap.get("IA_COOKIE_B64_ROUNDS");
-  const parsed = Number.parseInt(raw ?? "1", 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
-}
-
 function loadCookiePoolFromEnv(envMap) {
-  const rounds = getDecodeRounds(envMap);
-  const rawB64 = process.env.IA_COOKIE_POOL_B64 ?? envMap.get("IA_COOKIE_POOL_B64");
-  const decoded = decodeBase64Rounds(rawB64, rounds);
-  const raw = process.env.IA_COOKIE_POOL ?? envMap.get("IA_COOKIE_POOL") ?? decoded;
-  return parseIaCookiePoolJson(raw ?? "");
+  return parseIaCookiePoolFromEnv({
+    IA_COOKIE_POOL: process.env.IA_COOKIE_POOL ?? envMap.get("IA_COOKIE_POOL"),
+    IA_COOKIE_POOL_B64: process.env.IA_COOKIE_POOL_B64 ?? envMap.get("IA_COOKIE_POOL_B64"),
+    IA_COOKIE_B64_ROUNDS: process.env.IA_COOKIE_B64_ROUNDS ?? envMap.get("IA_COOKIE_B64_ROUNDS"),
+    IA_LOGGED_IN_USER: process.env.IA_LOGGED_IN_USER ?? envMap.get("IA_LOGGED_IN_USER"),
+    IA_LOGGED_IN_SIG: process.env.IA_LOGGED_IN_SIG ?? envMap.get("IA_LOGGED_IN_SIG")
+  });
 }
 
 function randomCookiePair(pool) {

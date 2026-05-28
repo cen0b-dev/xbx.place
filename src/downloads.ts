@@ -2,6 +2,7 @@ import { getAccessToken, isAuthenticated } from "./auth";
 
 const GUEST_ID_KEY = "xbx_guest_id";
 const GUEST_USED_KEY = "xbx_guest_dl_used";
+const GUEST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type DownloadGateResult =
   | { status: "started" }
@@ -17,12 +18,20 @@ function randomId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
-  return `guest-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  if (typeof crypto === "undefined" || !("getRandomValues" in crypto)) {
+    throw new Error("Secure random id unavailable in this browser.");
+  }
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 export function getGuestId(): string {
   let id = window.localStorage.getItem(GUEST_ID_KEY);
-  if (!id) {
+  if (!id || !GUEST_ID_RE.test(id)) {
     id = randomId();
     window.localStorage.setItem(GUEST_ID_KEY, id);
   }
@@ -58,18 +67,20 @@ export async function requestDownload(
   }
 
   const token = await getAccessToken();
-  const headers: Record<string, string> = {};
+  const guestId = getGuestId();
+  const url = new URL(resolveUrl, window.location.origin);
+  url.searchParams.set("guest", guestId);
+  const headers: Record<string, string> = { "X-Guest-Id": guestId };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
-  } else {
-    headers["X-Guest-Id"] = getGuestId();
+    url.searchParams.set("access_token", token);
   }
 
   onProgress?.({ loaded: 0, total: 0 });
 
   let res: Response;
   try {
-    res = await fetch(resolveUrl, { headers, credentials: "omit" });
+    res = await fetch(url.toString(), { headers, credentials: "omit" });
   } catch {
     return { status: "blocked", message: "Could not reach the download service." };
   }
@@ -87,6 +98,12 @@ export async function requestDownload(
     }
     if (res.status === 403 && body.error === "guest_limit") {
       return { status: "auth_required" };
+    }
+    if (res.status === 401) {
+      return {
+        status: "blocked",
+        message: "Sign in, or allow this site to store a guest id (localStorage), then try again."
+      };
     }
     return {
       status: "blocked",

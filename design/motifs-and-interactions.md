@@ -115,7 +115,7 @@ Changing category or filters resets `loadedCount`, clears grid, re-observes sent
 | Signed-in avatar | `.account-menu` dropdown |
 | Profile page | `body.profile-view`, `?profile=` |
 | Edit profile | `#accountSettingsMod` |
-| Preferences | `#setMod` (local theme/region/IA cookies) |
+| Preferences | `#setMod` (local theme/region) |
 | Add to collection | `#collectionMod` from game page |
 
 Downloads do **not** require sign-in.

@@ -283,7 +283,6 @@ Device-local settings (not account):
 |--------|---------|
 | Theme accent | `.swatches` / `.swatch` → `x_th` |
 | Default region | `#reg` dropdown → `x_r` |
-| IA cookie pool | `#ia-cookie-pool` textarea → `x_ia_cookie_pool` + bookmarklet link |
 
 Opened from account menu → Preferences. Region syncs with catalog filter drawer `#browseReg`.
 

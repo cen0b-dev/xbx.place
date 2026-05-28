@@ -12,6 +12,7 @@
     "build:ia-map": "node scripts/build-ia-map.mjs",
     "build:x360db-catalog": "node scripts/build-x360db-catalog.mjs",
     "build:data": "npm run build:x360db-catalog",
+    "legion:scan": "node tools/legiongamesgod/scan-xbox360.mjs",
     "build": "npm run build:data && tsc --noEmit && vite build",
     "preview": "vite preview"
   },

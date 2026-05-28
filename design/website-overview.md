@@ -123,7 +123,6 @@ Stored in `localStorage`:
 
 - **Accent theme** — Xbox green plus Fluent palette slots (blue, red, purple, yellow).
 - **Default region** — filters featured titles and catalog.
-- **Internet Archive cookie pool** — see Download workarounds below.
 
 ### Static pages
 
@@ -139,15 +138,15 @@ Documented separately in [foundations.md](./foundations.md), [components.md](./c
 
 ## How downloading works
 
-xbx.place **never proxies ROM bytes** through Cloudflare. A small Worker may **authorize** the request and return the allowlisted mirror URL; the browser then downloads directly from Archive (or another host). The real URL appears in the browser’s download UI.
+xbx.place does **not** buffer whole ROMs on Cloudflare. A Worker **authorizes** the request, uses the **IA cookie pool** (secrets) to resolve the Archive CDN URL, then returns a **stream link** on the Worker (`/download/file`) that pipes bytes from Archive with pool credentials. Non-Archive hosts get a direct mirror URL. The browser’s download UI shows the Worker hostname for Archive files.
 
 ### Archive (Internet Archive HTTP)
 
 | | |
 |--|--|
 | **Button** | Primary download button on each file row |
-| **Destination** | `https://archive.org/download/…` (resolved after optional auth gate) |
-| **Behavior** | App calls Worker → `{ url }` → new tab to Archive; file bytes never pass through the Worker |
+| **Destination** | Worker `/download/file?key=…` (streams from IA CDN using pool cookies) |
+| **Behavior** | App calls Worker → `{ url }` → new tab; Worker resolves CDN with pool, then streams (Range-aware). IA does not issue cookieless expiring CDN URLs. |
 | **Speed** | Slower HTTP; reliable for all file types (games, DLC, title updates) |
 | **Coverage** | All 7,420 indexed files |
 
@@ -178,18 +177,12 @@ These exist because of browser security, cross-origin limits, messy source filen
 ### 1. No ROM byte proxy
 
 **Problem:** Proxying multi-gigabyte ROMs through Cloudflare Workers is impractical (bandwidth limits, cost, hosting risk).  
-**Workaround:** Worker is an auth gate + URL resolver only (`{ url }` JSON). The browser fetches the file from Archive (or other allowlisted hosts). IA cookie secrets stay on Cloudflare / in build tooling, not in streamed download responses.
+**Workaround:** Worker is an auth gate + URL resolver only (`{ url }` JSON). The browser fetches the file from Archive (or other allowlisted hosts). No ROM bytes pass through Cloudflare.
 
-### 2. Internet Archive login cookies (cross-origin)
+### 2. Internet Archive cookie pool (server-only)
 
-**Problem:** Browsers forbid setting `Cookie` headers on cross-origin requests from xbx.place to `archive.org`. Logged-in IA sessions (higher rate limits, account-only files) cannot be sent from the catalog origin.  
-**Workaround (three-step flow):**
-
-1. User pastes an **IA cookie pool** JSON (`logged-in-user` + `logged-in-sig` pairs) in **Preferences** → saved to `localStorage` (`x_ia_cookie_pool`).
-2. User runs the generated **“Apply session” bookmarklet** while on `archive.org` — it sets cookies on the `.archive.org` domain in the browser.
-3. User returns to xbx.place and clicks **Archive** — the browser attaches those cookies automatically on Archive requests.
-
-Optional: `VITE_IA_COOKIE_POOL` env default for dev; `IA_COOKIE_POOL` for the `build:ia-map` script (rotates cookies when crawling IA metadata API).
+**Problem:** Archive redirects downloads to CDN hosts that require `logged-in-user` / `logged-in-sig` cookies. Browsers cannot receive those cookies from xbx.place or a Worker JSON response.  
+**Workaround:** Operators maintain `IA_COOKIE_POOL` in `.env.local` (for `build:ia-map`) and `wrangler secret put IA_COOKIE_POOL` on the download Worker. The Worker resolves the CDN URL with a random pool account, then **streams** through `/download/file` using that session. Users never paste cookies. This is passthrough streaming, not edge caching of full ROMs.
 
 ### 3. MiNERVA per-file magnet lookup
 
