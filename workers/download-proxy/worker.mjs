@@ -12,6 +12,7 @@ let mapCache = { map: null, expiresAt: 0 };
 const MAP_TTL_MS = 5 * 60 * 1000;
 
 const DEFAULT_HOSTS = "archive.org,vimm.net,file.romsworlds.com,1fichier.com";
+const DEFAULT_IMAGE_HOSTS = "download.xbox.com";
 
 function canonicalizeCookieValue(value) {
   if (typeof value !== "string") return null;
@@ -168,6 +169,31 @@ function parseAllowedHosts(raw) {
     .filter(Boolean);
 }
 
+function parseAllowedImageHosts(raw) {
+  const s = typeof raw === "string" && raw.trim() ? raw : DEFAULT_IMAGE_HOSTS;
+  return s
+    .split(",")
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isAllowedHost(hostname, allowedHosts) {
+  const host = hostname.toLowerCase();
+  return allowedHosts.some((h) => host === h || host.endsWith(`.${h}`));
+}
+
+function parseImageTarget(rawUrl, allowedHosts) {
+  if (typeof rawUrl !== "string" || !rawUrl.trim()) return null;
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+  return isAllowedHost(parsed.hostname, allowedHosts) ? parsed : null;
+}
+
 function parseIaCookiePool(env) {
   const rounds = getDecodeRounds(env);
   const decodedPool = decodeBase64Rounds(env.IA_COOKIE_POOL_B64, rounds);
@@ -245,7 +271,7 @@ function parseTarget(filenameMap, key, allowedHosts) {
     return null;
   }
   const host = parsed.hostname.toLowerCase();
-  const ok = allowedHosts.some((h) => host === h || host.endsWith(`.${h}`));
+  const ok = isAllowedHost(host, allowedHosts);
   return ok ? parsed : null;
 }
 
@@ -269,7 +295,24 @@ export default {
       return jsonResponse(405, { error: "Method not allowed" }, request);
     }
     const reqUrl = new URL(request.url);
-    if (reqUrl.pathname.replace(/\/$/, "") !== "/download") {
+    const path = reqUrl.pathname.replace(/\/$/, "");
+
+    if (path === "/image") {
+      const rawUrl = reqUrl.searchParams.get("url");
+      const target = parseImageTarget(rawUrl, parseAllowedImageHosts(env.ALLOWED_IMAGE_HOSTS));
+      if (!target) {
+        return jsonResponse(400, { error: "Invalid or disallowed image url" }, request);
+      }
+      const upstream = await fetch(target.toString(), { redirect: "follow" });
+      const headers = passthroughHeaders(upstream);
+      headers.set("cache-control", "public, max-age=86400");
+      for (const [name, value] of corsHeaders(request).entries()) {
+        headers.set(name, value);
+      }
+      return new Response(upstream.body, { status: upstream.status, headers });
+    }
+
+    if (path !== "/download") {
       return jsonResponse(404, { error: "Not found" }, request);
     }
     const key = reqUrl.searchParams.get("key");

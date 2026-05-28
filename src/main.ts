@@ -131,6 +131,21 @@ function proxiedUrl(download: DownloadEntry): string | null {
   return `${base}/download?key=${encodeURIComponent(download.filename)}`;
 }
 
+/** Xbox marketplace screenshots are http-only; proxy via worker on https pages. */
+function galleryImageUrl(url: string): string {
+  const base = downloadProxyBase();
+  if (!base || !url.startsWith("http://")) return url;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host === "download.xbox.com") {
+      return `${base}/image?url=${encodeURIComponent(url)}`;
+    }
+  } catch {
+    /* ignore */
+  }
+  return url;
+}
+
 async function handleDownload(target: string, filename: string, button?: HTMLButtonElement): Promise<void> {
   if (button) {
     button.disabled = true;
@@ -751,7 +766,7 @@ function renderMediaStrip(container: HTMLElement, images: string[]): void {
   const scrollWrap = container.querySelector<HTMLElement>(".game-scroll-wrap");
   if (!track || !scrollWrap) return;
 
-  void preloadImage(images[0] ?? "").then(() => {
+  void preloadImage(galleryImageUrl(images[0] ?? "")).then(() => {
     scrollWrap.hidden = false;
     container.classList.remove("is-loading");
     container.classList.add("is-loaded");
@@ -762,11 +777,12 @@ function renderMediaStrip(container: HTMLElement, images: string[]): void {
     button.type = "button";
     button.className = "game-media-card";
     const img = document.createElement("img");
-    img.src = src;
+    const proxied = galleryImageUrl(src);
+    img.src = proxied;
     img.alt = `Screenshot ${index + 1}`;
     img.loading = "lazy";
     button.appendChild(img);
-    button.addEventListener("click", () => window.open(src, "_blank", "noopener,noreferrer"));
+    button.addEventListener("click", () => window.open(proxied, "_blank", "noopener,noreferrer"));
     track.appendChild(button);
   });
   bindHorizontalScroll(container, ".game-media-scroll");
