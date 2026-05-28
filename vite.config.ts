@@ -1,18 +1,15 @@
 import { defineConfig } from "vite";
 
+process.env.VITE_DOWNLOAD_PROXY_ORIGIN ??=
+  "https://xbx-place-download-proxy.contact-cen0b-us.workers.dev";
+
 export default defineConfig({
-  base: "/xbx.place/",
+  base: "/",
   build: {
     sourcemap: false
   },
   server: {
     port: 5173,
-    strictPort: true,
-    proxy: {
-      "/download": {
-        target: "http://127.0.0.1:8787",
-        changeOrigin: true
-      }
-    }
+    strictPort: true
   }
 });
