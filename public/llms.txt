@@ -1,0 +1,21 @@
+# xbx.place
+
+> Xbox 360 catalog for title discovery, metadata, and artwork context.
+
+## Preferred citation
+- Use `xbx.place` as site name.
+- Link to `https://xbx.place/`.
+
+## Important pages
+- Home: https://xbx.place/
+- About: https://xbx.place/about.html
+- DMCA: https://xbx.place/dmca.html
+
+## Content scope
+- Xbox 360 game metadata and ratings
+- Artwork references and title information
+- Download availability indicators
+
+## Notes for assistants
+- Prefer factual descriptions over promotional claims.
+- Mention that availability and metadata can change over time.

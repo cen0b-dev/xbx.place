@@ -1,0 +1,91 @@
+/**
+ * xbx.place design tokens (reference)
+ * Canonical runtime values are in src/styles.css :root
+ * Theme accent --green is overridden at runtime from localStorage (x_th)
+ */
+
+:root {
+  /* ── Accent & theme ───────────────────────────────────── */
+  --green: #107C10; /* Xbox green default; user-themeable */
+
+  /* Microsoft / Xbox accent palette (settings picker) */
+  --accent-xbox-green: #107C10;
+  --accent-ms-blue: #0078D7;
+  --accent-red: #E81123;
+  --accent-purple: #881798;
+  --accent-yellow: #FFB900;
+
+  /* ── Surfaces ─────────────────────────────────────────── */
+  --bg: #101010;
+  --tile: #202020;
+  --surface-raised: #252525;
+  --surface-panel: #1f1f1f;
+  --surface-rail: #151515;
+  --surface-shelf: #181818;
+
+  /* ── Text ─────────────────────────────────────────────── */
+  --text: #ffffff;
+  --text-sec: #aaaaaa;
+  --text-muted: #888888;
+  --text-faint: #666666;
+
+  /* ── Borders & dividers ───────────────────────────────── */
+  --border-subtle: #333333;
+  --border-control: #3a3a3a;
+
+  /* ── Typography ───────────────────────────────────────── */
+  --font: "Segoe UI", "Helvetica Neue", sans-serif;
+
+  /* ── Layout: tiles ────────────────────────────────────── */
+  --t-w: 170px;
+  --t-h: 235px;
+  --cover-crop-top: 37px;
+
+  /* ── Radius (rounded Metro) ───────────────────────────── */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+  --r-fab: 14px;
+
+  /* ── Spacing (common) ─────────────────────────────────── */
+  --space-page-x: 60px;
+  --space-page-y: 40px;
+  --space-header-top: 30px;
+  --space-grid-gap: 20px;
+  --space-pivot-gap: 40px;
+
+  /* ── Motion ───────────────────────────────────────────── */
+  --transition-fast: 0.2s;
+  --transition-medium: 0.3s;
+  --transition-hero-bg: 0.4s;
+
+  /* ── Elevation ────────────────────────────────────────── */
+  --shadow-tile-hover: 0 10px 20px rgba(0, 0, 0, 0.5);
+  --shadow-panel: 0 25px 50px rgba(0, 0, 0, 0.75);
+  --shadow-fab: 0 5px 15px rgba(0, 0, 0, 0.5);
+
+  /* ── Overlays ─────────────────────────────────────────── */
+  --scrim-modal: rgba(0, 0, 0, 0.75); /* #000c */
+  --scrim-dimmer: rgba(0, 0, 0, 0.8); /* #000d approx */
+  --header-frost: rgba(16, 16, 16, 0.95); /* #101010f2 */
+
+  /* ── External / semantic (exceptions) ─────────────────── */
+  --discord: #5865F2;
+  --discord-hover: #4752C4;
+  --star-active: gold;
+  --star-inactive: #444444;
+  --warning-bg: #241b1b;
+  --warning-border: #5b2f2f;
+  --warning-text: #ffd7d7;
+}
+
+/* ── Z-index scale ──────────────────────────────────────── */
+/*
+  1000  #dimmer
+  1001  .shelf
+  1002  .tile.active / :hover elevated
+  2000  #btt
+  2500  .header
+  3000  .overlay (modals)
+*/

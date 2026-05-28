@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://xbx.place/sitemap.xml
+# AI assistant context
+# https://llmstxt.org/
+# LLMs-TXT: https://xbx.place/llms.txt

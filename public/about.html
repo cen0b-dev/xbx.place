@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>About xbx.place</title>
+    <meta
+      name="description"
+      content="Learn about xbx.place, an Xbox 360 catalog focused on searchable metadata, artwork, and downloadable archive discovery."
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+    <link rel="canonical" href="https://xbx.place/about.html" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="About xbx.place" />
+    <meta
+      property="og:description"
+      content="What xbx.place is, where metadata comes from, and how the catalog and downloads are handled."
+    />
+    <meta property="og:url" content="https://xbx.place/about.html" />
+    <meta property="og:image" content="https://xbx.place/logo.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:image" content="https://xbx.place/logo.png" />
+    <meta name="twitter:title" content="About xbx.place" />
+    <meta
+      name="twitter:description"
+      content="Mission, data sources, and transparency notes for xbx.place."
+    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "AboutPage",
+        "name": "About xbx.place",
+        "url": "https://xbx.place/about.html",
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "xbx.place",
+          "url": "https://xbx.place/"
+        }
+      }
+    </script>
+    <style>
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: #101010;
+        color: #e8e8e8;
+        line-height: 1.65;
+      }
+      main {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 48px 20px;
+      }
+      h1,
+      h2 {
+        color: #fff;
+      }
+      a {
+        color: #5fdb5f;
+      }
+      .site-header {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 28px 20px 0;
+      }
+      .site-header a {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: #fff;
+        text-decoration: none;
+        font-size: 1.15rem;
+        font-weight: 600;
+      }
+      .site-header img {
+        width: 32px;
+        height: 32px;
+        object-fit: contain;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <a href="./"><img src="logo.png" width="32" height="32" alt="" /><span>xbx.place</span></a>
+    </header>
+    <main>
+      <h1>About xbx.place</h1>
+      <p>
+        xbx.place is an index-style catalog for Xbox 360 titles and related downloadable content. It
+        is designed to make discovery easier with fast search, title metadata, ratings, and artwork.
+      </p>
+
+      <h2>Data and Sources</h2>
+      <p>
+        Title metadata and artwork references are aggregated from public Xbox 360 datasets and catalog
+        tooling used by this project. Download mappings are generated from archive indexes and merged
+        into the site catalog during the data build pipeline.
+      </p>
+
+      <h2>How Downloads Are Handled</h2>
+      <p>
+        Download links in the UI are routed through a proxy endpoint to avoid exposing raw upstream
+        URLs directly in the client interface.
+      </p>
+
+      <h2>Contact and Requests</h2>
+      <p>
+        For takedown and rights-related requests, use the DMCA page linked below.
+      </p>
+      <p><a href="dmca.html">DMCA Policy</a> · <a href="./">Back to catalog</a></p>
+    </main>
+  </body>
+</html>
