@@ -1,6 +1,6 @@
 # xbx.place
 
-Static Vite + TypeScript frontend for browsing Xbox 360 titles. Download buttons stream files via the [Wayback Machine](https://web.archive.org/) without exposing raw archive URLs in the page markup (no `href` on download controls).
+Static Vite + TypeScript frontend for browsing Xbox 360 titles. Download buttons stream files from Internet Archive URLs in the catalog without exposing raw links in the page markup (no `href` on download controls).
 
 ## Requirements
 
@@ -94,4 +94,6 @@ Deployment is handled by `.github/workflows/deploy-github-pages.yml` on push to 
 
 ## Downloads
 
-Clicking a download row opens the file through `https://web.archive.org/web/0id_/…` in a hidden iframe. Buttons are plain `<button>` elements (no link URL in the DOM), so hovering does not reveal the Wayback or Internet Archive address in the status bar.
+Clicking a download row starts the file from the catalog’s archive.org URL in a hidden iframe. Buttons are plain `<button>` elements (no link URL in the DOM), so hovering does not reveal the Internet Archive address in the status bar.
+
+Xbox marketplace screenshots in the catalog are `http://download.xbox.com/…` only; the app rewrites them to load over HTTPS via `images.weserv.nl` so they work on GitHub Pages.

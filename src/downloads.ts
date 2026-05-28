@@ -1,5 +1,3 @@
-import { waybackDownloadUrl } from "./wayback";
-
 export type DownloadProgress = {
   loaded: number;
   total: number;
@@ -13,8 +11,9 @@ function triggerDownload(url: string): void {
   window.setTimeout(() => frame.remove(), 120_000);
 }
 
+/** Stream from the catalog URL (archive.org). Wayback embed returns 403 in iframes. */
 export function startDownload(sourceUrl: string, _filename: string): void {
-  triggerDownload(waybackDownloadUrl(sourceUrl));
+  triggerDownload(sourceUrl.trim());
 }
 
 export function formatDownloadProgress(_progress: DownloadProgress): string {

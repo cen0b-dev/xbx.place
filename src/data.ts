@@ -1,4 +1,6 @@
+import { galleryImageUrl } from "./gallery-image";
 import type { TitleEntry } from "./types";
+
 function normalizeTitleEntry(row: TitleEntry): TitleEntry {
   const downloads = (row.downloads ?? [])
     .filter((download) => Boolean(download?.url) && Boolean(download?.filename))
@@ -8,9 +10,16 @@ function normalizeTitleEntry(row: TitleEntry): TitleEntry {
       label: download.label ?? download.filename.replace(/\.(zip|iso)$/i, "")
     }));
 
+  const rawGallery = row.artwork?.gallery;
+  const gallery =
+    Array.isArray(rawGallery) && rawGallery.length
+      ? rawGallery.map((src) => galleryImageUrl(src))
+      : rawGallery;
+
   return {
     ...row,
-    downloads
+    downloads,
+    artwork: gallery ? { ...row.artwork, gallery } : row.artwork
   };
 }
 

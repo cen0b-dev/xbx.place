@@ -14,6 +14,7 @@ import { bindCollectionUi, closeCollectionModal, setActiveGameForCollections } f
 import { bgUrl, coverUrl, loadTitles, syncGameModalBackground } from "./data";
 import { formatDownloadDisplay } from "./download-label";
 import { formatDownloadProgress, startDownload } from "./downloads";
+import { galleryImageUrl } from "./gallery-image";
 import {
   bindFormControlGlobals,
   dropdownMarkup,
@@ -116,13 +117,6 @@ function scrollBelowHeader(element: HTMLElement | null): void {
   if (top >= offset - 4 && top <= offset + 32) return;
   const target = element.getBoundingClientRect().top + window.scrollY - offset;
   window.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
-}
-
-function galleryImageUrl(url: string): string {
-  if (url.startsWith("http://download.xbox.com/")) {
-    return `https://${url.slice("http://".length)}`;
-  }
-  return url;
 }
 
 function handleDownload(sourceUrl: string, filename: string, button?: HTMLButtonElement): void {
