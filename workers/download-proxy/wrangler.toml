@@ -1,5 +1,5 @@
 # Deploy (free): cd workers/download-proxy && npx wrangler deploy
-# Then set GitHub repo variable VITE_DOWNLOAD_PROXY_ORIGIN to https://<name>.<subdomain>.workers.dev
+# Worker URLs are listed in Supabase worker_pool (managed via npm run workers).
 
 name = "xbx-place-download-proxy"
 main = "worker.mjs"
@@ -7,10 +7,11 @@ compatibility_date = "2024-12-01"
 
 # Public URL of master_index.json after GitHub Pages deploy (same catalog the site uses).
 [vars]
+IA_FILE_MAP_URL = "https://xbx.place/ia-file-map.json"
 MASTER_INDEX_URL = "https://xbx.place/master_index.json"
 
 # Secrets — set per worker account, never commit values:
 #   npx wrangler secret put SUPABASE_URL
 #   npx wrangler secret put SUPABASE_ANON_KEY
 #   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-#   npx wrangler secret put IA_COOKIE_POOL
+# IA cookies are read from Supabase ia_cookie_pool (npm run ia-cookies).

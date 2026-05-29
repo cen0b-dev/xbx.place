@@ -29,6 +29,9 @@ export type TitleEntry = {
   metadata?: {
     source?: string;
     languageTags?: string[];
+    match_status?: string;
+    /** x360db title ID to use for box art when this entry has a synthetic id. */
+    cover_title_id?: string;
   };
   downloads: DownloadEntry[];
 };

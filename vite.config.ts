@@ -3,11 +3,10 @@ import { join } from "node:path";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 
 // ---------------------------------------------------------------------------
-// Inject Supabase URL + anon key into public/workers/index.html placeholders.
+// Inject Supabase URL + anon key into public/status/index.html placeholders.
 // Both values are publishable — they're already baked into the main JS bundle.
 // ---------------------------------------------------------------------------
-function injectWorkersConfig(supabaseUrl: string, supabaseKey: string): Plugin {
-
+function injectStatusConfig(supabaseUrl: string, supabaseKey: string): Plugin {
   function transform(html: string) {
     return html
       .replace("%%SUPABASE_URL%%", supabaseUrl)
@@ -15,23 +14,21 @@ function injectWorkersConfig(supabaseUrl: string, supabaseKey: string): Plugin {
   }
 
   return {
-    name: "inject-workers-config",
+    name: "inject-status-config",
 
-    // Dev: serve the transformed file directly
     configureServer(server) {
-      server.middlewares.use((req, _res, next) => {
+      server.middlewares.use((req, res, next) => {
         const url = req.url?.split("?")[0];
-        if (url !== "/workers/index.html") return next();
-        const file = join(__dirname, "public/workers/index.html");
+        if (url !== "/status/index.html") return next();
+        const file = join(__dirname, "public/status/index.html");
         if (!existsSync(file)) return next();
-        _res.setHeader("Content-Type", "text/html; charset=utf-8");
-        _res.end(transform(readFileSync(file, "utf8")));
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.end(transform(readFileSync(file, "utf8")));
       });
     },
 
-    // Build: patch the copied output file
     closeBundle() {
-      const out = join(__dirname, "dist/workers/index.html");
+      const out = join(__dirname, "dist/status/index.html");
       if (existsSync(out)) {
         writeFileSync(out, transform(readFileSync(out, "utf8")), "utf8");
       }
@@ -44,8 +41,8 @@ function injectWorkersConfig(supabaseUrl: string, supabaseKey: string): Plugin {
 // ---------------------------------------------------------------------------
 function servePublicSubdirIndex(): Plugin {
   const rewrites: Record<string, string> = {
-    "/test":     "/test/index.html",
-    "/test/":    "/test/index.html",
+    "/status":  "/status/index.html",
+    "/status/": "/status/index.html",
     "/workers":  "/workers/index.html",
     "/workers/": "/workers/index.html",
   };
@@ -67,19 +64,13 @@ function servePublicSubdirIndex(): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  process.env.VITE_DOWNLOAD_PROXY_ORIGIN ??=
-    env.VITE_DOWNLOAD_PROXY_ORIGIN ||
-    "https://xbx-place-download-proxy.contact-cen0b-us.workers.dev";
-  // Set VITE_DOWNLOAD_PROXY_POOL (comma-separated origins) to enable
-  // multi-account load balancing.  Takes precedence over VITE_DOWNLOAD_PROXY_ORIGIN.
 
   const supabaseUrl = env.VITE_SUPABASE_URL ?? "";
   const supabaseKey = env.VITE_SUPABASE_ANON_KEY ?? "";
 
   return {
     base: "/",
-    // Rewrite /workers/ → /workers/index.html before injection middleware runs.
-    plugins: [servePublicSubdirIndex(), injectWorkersConfig(supabaseUrl, supabaseKey)],
+    plugins: [servePublicSubdirIndex(), injectStatusConfig(supabaseUrl, supabaseKey)],
     build: { sourcemap: false },
     server: { port: 5173, strictPort: true },
   };

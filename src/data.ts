@@ -7,7 +7,7 @@ function normalizeTitleEntry(row: TitleEntry): TitleEntry {
     .map((download) => ({
       ...download,
       type: download.type ?? "ROM",
-      label: download.label ?? download.filename.replace(/\.(zip|iso)$/i, "")
+      label: download.label ?? download.filename.replace(/\.(zip|iso|7z|rar)$/i, "")
     }));
 
   const rawGallery = row.artwork?.gallery;
@@ -43,18 +43,34 @@ export async function loadTitles(): Promise<TitleEntry[]> {
   return Array.from(deduped.values());
 }
 
-export function coverUrl(titleId: string): string {
-  if (!/^[A-F0-9]{8}$/i.test(titleId)) {
-    return "https://placehold.co/280x390/1a1a1a/ffffff?text=No+Cover";
+export function coverUrl(gameOrTitleId: TitleEntry | string): string {
+  const placeholder = "https://placehold.co/280x390/1a1a1a/ffffff?text=No+Cover";
+  const x360dbBoxart = (titleId: string) =>
+    `https://raw.githubusercontent.com/xenia-manager/x360db/refs/heads/main/titles/${titleId.toUpperCase()}/artwork/boxart.jpg`;
+
+  if (typeof gameOrTitleId === "string") {
+    if (/^[A-F0-9]{8}$/i.test(gameOrTitleId)) return x360dbBoxart(gameOrTitleId);
+    return placeholder;
   }
-  return `https://raw.githubusercontent.com/xenia-manager/x360db/refs/heads/main/titles/${titleId}/artwork/boxart.jpg`;
+
+  const game = gameOrTitleId;
+  const coverId = game.metadata?.cover_title_id ?? game.title_id;
+  if (/^[A-F0-9]{8}$/i.test(coverId)) return x360dbBoxart(coverId);
+
+  const gallery = game.artwork?.gallery?.[0];
+  if (gallery) return galleryImageUrl(gallery);
+
+  return placeholder;
 }
 
-export function bgUrl(titleId: string): string {
-  if (!/^[A-F0-9]{8}$/i.test(titleId)) {
-    return "";
-  }
-  return `https://raw.githubusercontent.com/xenia-manager/x360db/refs/heads/main/titles/${titleId}/artwork/background.jpg`;
+export function bgUrl(gameOrTitleId: TitleEntry | string): string {
+  const resolveId = (): string => {
+    if (typeof gameOrTitleId === "string") return gameOrTitleId;
+    return gameOrTitleId.metadata?.cover_title_id ?? gameOrTitleId.title_id;
+  };
+  const titleId = resolveId();
+  if (!/^[A-F0-9]{8}$/i.test(titleId)) return "";
+  return `https://raw.githubusercontent.com/xenia-manager/x360db/refs/heads/main/titles/${titleId.toUpperCase()}/artwork/background.jpg`;
 }
 
 export function syncGameModalBackground(modalRootId: string, game: TitleEntry | null): void {
@@ -63,7 +79,7 @@ export function syncGameModalBackground(modalRootId: string, game: TitleEntry | 
   const img = root?.querySelector(".game-modal-bg-img") as HTMLImageElement | null;
   if (!panel) return;
 
-  const background = game?.title_id ? bgUrl(game.title_id) : "";
+  const background = game ? bgUrl(game) : "";
   if (background) {
     panel.classList.remove("game-modal--ambient");
     if (img) {

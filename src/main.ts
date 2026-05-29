@@ -226,7 +226,7 @@ function showDownloadNotice(message: string, isError = false): void {
 }
 
 function gameBackgroundUrl(entry: TitleEntry): string {
-  return bgUrl(entry.title_id);
+  return bgUrl(entry);
 }
 
 function escapeHtml(value: string): string {
@@ -1075,7 +1075,7 @@ function renderGameRecommendations(container: HTMLElement, game: TitleEntry): vo
   const scrollWrap = container.querySelector<HTMLElement>(".game-scroll-wrap");
   if (!track || !scrollWrap) return;
 
-  void preloadImage(coverUrl(picks[0]!.title_id)).then(() => {
+  void preloadImage(coverUrl(picks[0]!)).then(() => {
     scrollWrap.hidden = false;
     container.classList.remove("is-loading");
     container.classList.add("is-loaded");
@@ -1099,7 +1099,7 @@ function renderGameRecommendations(container: HTMLElement, game: TitleEntry): vo
     button.querySelector(".game-rec-genre")!.textContent = (rec.genre?.slice(0, 2) ?? ["Related title"]).join(" · ");
     const recCover = button.querySelector<HTMLImageElement>(".game-rec-cover img");
     if (recCover) {
-      bindCroppedCover(recCover, coverUrl(rec.title_id), {
+      bindCroppedCover(recCover, coverUrl(rec), {
         fallbackSrc: `https://placehold.co/280x390/202020/ffffff.png?text=${encodeURIComponent(rec.name)}`
       });
     }
@@ -1162,7 +1162,7 @@ function openGamePage(game: TitleEntry, push = true): void {
   renderMediaStrip(media, game.artwork?.gallery ?? []);
   renderGameRecommendations(recommendations, game);
 
-  const coverSrc = coverUrl(game.title_id);
+  const coverSrc = coverUrl(game);
   const bgSrc = gameBackgroundUrl(game);
   cover.alt = `${game.name} cover art`;
   bg.src = bgSrc;
@@ -1277,10 +1277,6 @@ function similarTitles(game: TitleEntry, limit = 10): TitleEntry[] {
     .map((row) => row.entry);
 }
 
-function openSettings(): void {
-  document.getElementById("setMod")?.classList.add("show");
-}
-
 function closeSettings(): void {
   document.getElementById("setMod")?.classList.remove("show");
 }
@@ -1294,21 +1290,6 @@ function isGameEntry(entry: TitleEntry): boolean {
 
 function isAddonEntry(entry: TitleEntry): boolean {
   return entry.downloads.some((d) => d.type === "DLC" || d.type === "Update");
-}
-
-function shuffleArray<T>(items: T[]): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const tmp = copy[i]!;
-    copy[i] = copy[j]!;
-    copy[j] = tmp;
-  }
-  return copy;
-}
-
-function randomSample<T>(items: T[], count: number): T[] {
-  return shuffleArray(items).slice(0, Math.min(count, items.length));
 }
 
 function syncRegion(value: string): void {
@@ -1529,7 +1510,7 @@ function renderSiteHero(): void {
   slides.innerHTML = bgPicks
     .map(
       (entry, index) =>
-        `<div class="site-hero-slide" style="--slide-index:${index};background-image:url('${bgUrl(entry.title_id)}')"></div>`
+        `<div class="site-hero-slide" style="--slide-index:${index};background-image:url('${bgUrl(entry)}')"></div>`
     )
     .join("");
 
@@ -1542,7 +1523,7 @@ function renderSiteHero(): void {
     img.alt = "";
     img.loading = "lazy";
     img.decoding = "async";
-    bindCroppedCover(img, coverUrl(entry.title_id));
+    bindCroppedCover(img, coverUrl(entry));
     card.appendChild(img);
     covers.appendChild(card);
   });
@@ -1630,7 +1611,7 @@ function buildGridCard(game: TitleEntry): HTMLButtonElement {
   if (category === "DLC") {
     return createAddonListCard(game, {
       subtitle: addonPackageSummary(game, activeAddonType),
-      coverSrc: coverUrl(game.title_id),
+      coverSrc: coverUrl(game),
       dimmed: !game.downloads?.length,
       onActivate
     });
@@ -1743,10 +1724,6 @@ function resetCatalogGrid(): void {
     void grid.offsetWidth;
     grid.classList.remove("is-transitioning");
   }, 150);
-}
-
-function renderPageTiles(): void {
-  resetCatalogGrid();
 }
 
 function updateBrowseSectionChrome(): void {
@@ -2043,6 +2020,7 @@ function saveSettings(): void {
 function bindStaticEvents(): void {
   document.getElementById("btt")?.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
   document.getElementById("close-settings")?.addEventListener("click", () => closeSettings());
+  document.getElementById("save-settings")?.addEventListener("click", () => saveSettings());
   document.getElementById("close-package-mod")?.addEventListener("click", () => closePackageModal());
   document.getElementById("close-game-page")?.addEventListener("click", () => closeGamePage());
   document.getElementById("gp-download-btn")?.addEventListener("click", () => openDownloadModal());

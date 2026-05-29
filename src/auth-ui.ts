@@ -287,8 +287,9 @@ async function renderCollectionGames(container: HTMLElement, collectionId: strin
   container.querySelectorAll<HTMLButtonElement>("[data-title-id]").forEach((button) => {
     const img = button.querySelector<HTMLImageElement>("[data-cover-id]");
     const titleId = button.dataset.titleId;
-    if (img && titleId) {
-      bindCroppedCover(img, coverUrl(titleId), {
+    const game = titleId ? index.get(titleId) : undefined;
+    if (img && game) {
+      bindCroppedCover(img, coverUrl(game), {
         fallbackSrc: `https://placehold.co/280x350/202020/ffffff.png?text=${encodeURIComponent(button.querySelector("span")?.textContent ?? "Game")}`
       });
     }

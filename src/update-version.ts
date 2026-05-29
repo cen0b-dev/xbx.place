@@ -2,7 +2,7 @@ import type { DownloadEntry } from "./types";
 
 const VERSION_RE = /\(v(\d+(?:\.\d+)?)(?:\s+\d+)?([a-z])?\)/i;
 
-export function parseUpdateVersion(raw: string): number {
+function parseUpdateVersion(raw: string): number {
   const match = raw.match(VERSION_RE);
   if (!match?.[1]) return 0;
   const base = Number.parseFloat(match[1]);
@@ -17,7 +17,7 @@ export function formatUpdateVersion(raw: string): string | null {
   return `v${match[1]}${match[2] ?? ""}`;
 }
 
-export function sortTitleUpdates(downloads: DownloadEntry[]): DownloadEntry[] {
+function sortTitleUpdates(downloads: DownloadEntry[]): DownloadEntry[] {
   return [...downloads].sort((a, b) => {
     const av = a.updateVersion ?? parseUpdateVersion(a.label ?? a.filename);
     const bv = b.updateVersion ?? parseUpdateVersion(b.label ?? b.filename);

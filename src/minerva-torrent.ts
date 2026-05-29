@@ -54,7 +54,7 @@ async function getWorker(): Promise<SqlWorker | null> {
   return workerPromise;
 }
 
-export async function lookupMinervaFile(filename: string): Promise<MinervaFileRow | null> {
+async function lookupMinervaFile(filename: string): Promise<MinervaFileRow | null> {
   const path = minervaRomPath(filename);
   if (rowCache.has(path)) return rowCache.get(path) ?? null;
 
@@ -78,7 +78,7 @@ export async function lookupMinervaFile(filename: string): Promise<MinervaFileRo
   }
 }
 
-export function minervaTorrentAssetUrl(torrents: string): string {
+function minervaTorrentAssetUrl(torrents: string): string {
   const rel = torrents.replace(/^\//, "");
   return `${MINERVA_ORIGIN}/assets/${rel}`;
 }

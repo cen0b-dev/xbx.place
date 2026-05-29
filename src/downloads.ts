@@ -8,9 +8,9 @@ const GUEST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 export type DownloadGateResult =
   | { status: "started" }
   | { status: "auth_required" }
-  | { status: "blocked"; message: string };
+  | { status: "blocked"; message: string; tryOtherWorkers?: boolean };
 
-export function getGuestId(): string {
+function getGuestId(): string {
   let id = window.localStorage.getItem(GUEST_ID_KEY);
   if (!id || !GUEST_ID_RE.test(id)) {
     id = crypto.randomUUID();
@@ -19,7 +19,7 @@ export function getGuestId(): string {
   return id;
 }
 
-export function guestDownloadUsedLocally(): boolean {
+function guestDownloadUsedLocally(): boolean {
   return window.localStorage.getItem(GUEST_USED_KEY) === "1";
 }
 
@@ -27,9 +27,10 @@ function markGuestDownloadUsed(): void {
   window.localStorage.setItem(GUEST_USED_KEY, "1");
 }
 
-function triggerNativeDownload(url: string): void {
+function triggerNativeDownload(url: string, filename: string): void {
   const anchor = document.createElement("a");
   anchor.href = url;
+  anchor.download = filename;
   anchor.rel = "noopener noreferrer";
   anchor.target = "_blank";
   anchor.style.display = "none";
@@ -38,7 +39,7 @@ function triggerNativeDownload(url: string): void {
   anchor.remove();
 }
 
-async function requestDownload(resolveUrl: string): Promise<DownloadGateResult> {
+async function requestDownload(resolveUrl: string, filename: string): Promise<DownloadGateResult> {
   if (!isAuthenticated() && guestDownloadUsedLocally()) {
     return { status: "auth_required" };
   }
@@ -57,12 +58,12 @@ async function requestDownload(resolveUrl: string): Promise<DownloadGateResult> 
   try {
     res = await fetch(url.toString(), { headers, credentials: "omit" });
   } catch {
-    return { status: "blocked", message: "Could not reach the download service." };
+    return { status: "blocked", message: "Could not reach the download service.", tryOtherWorkers: true };
   }
 
-  let body: { url?: string; error?: string };
+  let body: { url?: string; filename?: string; error?: string };
   try {
-    body = (await res.json()) as { url?: string; error?: string };
+    body = (await res.json()) as { url?: string; filename?: string; error?: string };
   } catch {
     return { status: "blocked", message: "Invalid response from the download service." };
   }
@@ -71,17 +72,30 @@ async function requestDownload(resolveUrl: string): Promise<DownloadGateResult> 
     if (res.status === 401 && body.error === "auth_required") return { status: "auth_required" };
     if (res.status === 403 && body.error === "guest_limit") return { status: "auth_required" };
     if (res.status === 401) {
-      return { status: "blocked", message: "Sign in, or allow this site to store a guest id (localStorage), then try again." };
+      return {
+        status: "blocked",
+        message: "Sign in, or allow this site to store a guest id (localStorage), then try again.",
+        tryOtherWorkers: false
+      };
     }
     // Surface IA-specific failures so the pool can report them distinctly
     if (res.status === 503) notifyEvent("ia_cookie_empty", new URL(resolveUrl).origin, body.error);
     if (res.status === 502) notifyEvent("ia_resolve_failed", new URL(resolveUrl).origin, body.error);
-    return { status: "blocked", message: body.error ?? `Download unavailable (${res.status}).` };
+    const tryOtherWorkers = res.status >= 500 || res.status === 429;
+    return {
+      status: "blocked",
+      message: body.error ?? `Download unavailable (${res.status}).`,
+      tryOtherWorkers
+    };
   }
 
   if (!body.url) return { status: "blocked", message: "No download URL returned." };
 
-  triggerNativeDownload(body.url);
+  const downloadName =
+    (typeof body.filename === "string" && body.filename.trim()) ||
+    new URL(body.url).searchParams.get("filename")?.trim() ||
+    filename;
+  triggerNativeDownload(body.url, downloadName);
 
   if (!isAuthenticated()) markGuestDownloadUsed();
 
@@ -93,17 +107,31 @@ async function requestDownload(resolveUrl: string): Promise<DownloadGateResult> 
  * to the next worker on transient errors.
  */
 export async function requestDownloadWithPool(filename: string): Promise<DownloadGateResult> {
+  const archiveFilename = filename.trim();
+  if (!archiveFilename) {
+    return { status: "blocked", message: "Missing download filename." };
+  }
+
   if (!hasProxy()) {
     return { status: "blocked", message: "No download workers are configured. Please try again later." };
   }
 
   let origin = pickProxy();
   while (origin !== null) {
-    const result = await requestDownload(`${origin}/download?key=${encodeURIComponent(filename)}`);
+    const result = await requestDownload(
+      `${origin}/download?filename=${encodeURIComponent(archiveFilename)}`,
+      archiveFilename
+    );
 
     if (result.status === "started" || result.status === "auth_required") return result;
 
-    reportProxyRateLimit(origin);
+    if (result.tryOtherWorkers !== false) {
+      reportProxyRateLimit(origin, result.message);
+    }
+    if (result.tryOtherWorkers === false) {
+      return result;
+    }
+
     const next = pickNextProxy(origin);
     if (next === null) break;
     origin = next;

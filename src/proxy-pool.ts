@@ -3,8 +3,6 @@
  *
  * The pool is fetched at runtime from the Supabase `worker_pool` table so
  * adding/removing workers takes effect immediately without a rebuild.
- * Falls back to VITE_DOWNLOAD_PROXY_POOL / VITE_DOWNLOAD_PROXY_ORIGIN env
- * vars if Supabase is unreachable.
  */
 
 const COOLOFF_MS = 5 * 60 * 1000;
@@ -45,13 +43,7 @@ async function fetchFromSupabase(): Promise<string[]> {
 }
 
 function envFallbackPool(): string[] {
-  const poolEnv = (import.meta.env.VITE_DOWNLOAD_PROXY_POOL as string | undefined)?.trim();
-  if (poolEnv) {
-    const workers = poolEnv.split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean);
-    if (workers.length) return workers;
-  }
-  const single = (import.meta.env.VITE_DOWNLOAD_PROXY_ORIGIN as string | undefined)?.trim();
-  return single ? [single.replace(/\/+$/, "")] : [];
+  return [];
 }
 
 /** Call once during app bootstrap. Resolves when the pool is ready. */

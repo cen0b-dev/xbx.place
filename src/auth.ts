@@ -92,4 +92,4 @@ export function authAvailable(): boolean {
   return supabaseConfigured;
 }
 
-export type { Session, User };
+export type { User };

@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { buildIaCookieHeader, parseIaCookiePoolFromEnv } from "./ia-cookie-pool.mjs";
+import { buildIaCookieHeader, fetchIaCookiePoolFromSupabase, recordIaCookieUse } from "./ia-cookie-pool.mjs";
 
 const ROOT = process.cwd();
 const MASTER_INDEX_PATH = path.join(ROOT, "public", "master_index.json");
@@ -35,29 +35,21 @@ async function loadLocalEnvMap() {
   return out;
 }
 
-function resolveIaCookiePair(envMap) {
-  const user = process.env.IA_LOGGED_IN_USER ?? envMap.get("IA_LOGGED_IN_USER");
-  const sig = process.env.IA_LOGGED_IN_SIG ?? envMap.get("IA_LOGGED_IN_SIG");
-  if (!user || !sig) {
-    return null;
-  }
-  return { user, sig };
-}
-
-function loadCookiePoolFromEnv(envMap) {
-  return parseIaCookiePoolFromEnv({
-    IA_COOKIE_POOL: process.env.IA_COOKIE_POOL ?? envMap.get("IA_COOKIE_POOL"),
-    IA_COOKIE_POOL_B64: process.env.IA_COOKIE_POOL_B64 ?? envMap.get("IA_COOKIE_POOL_B64"),
-    IA_COOKIE_B64_ROUNDS: process.env.IA_COOKIE_B64_ROUNDS ?? envMap.get("IA_COOKIE_B64_ROUNDS"),
-    IA_LOGGED_IN_USER: process.env.IA_LOGGED_IN_USER ?? envMap.get("IA_LOGGED_IN_USER"),
-    IA_LOGGED_IN_SIG: process.env.IA_LOGGED_IN_SIG ?? envMap.get("IA_LOGGED_IN_SIG")
-  });
-}
-
 function randomCookiePair(pool) {
   if (!pool.length) return null;
   const idx = Math.floor(Math.random() * pool.length);
   return pool[idx] ?? null;
+}
+
+async function loadCookiePool(envMap) {
+  const supabaseUrl =
+    process.env.SUPABASE_URL ??
+    envMap.get("SUPABASE_URL") ??
+    process.env.VITE_SUPABASE_URL ??
+    envMap.get("VITE_SUPABASE_URL");
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? envMap.get("SUPABASE_SERVICE_ROLE_KEY");
+  return fetchIaCookiePoolFromSupabase(supabaseUrl, serviceKey);
 }
 
 function extractRedumpIaIdentifiers(markdown) {
@@ -104,6 +96,23 @@ function extractTitleUpdateIaIdentifiers(markdown) {
   return [...ids];
 }
 
+function extractXblaIaIdentifiers(markdown) {
+  const ids = new Set();
+  const allMatches = markdown.matchAll(/https:\/\/archive\.org\/download\/([A-Za-z0-9%._-]+)/gi);
+  for (const match of allMatches) {
+    const raw = match[1];
+    if (!raw) continue;
+    const id = decodeURIComponent(raw);
+    if (!/^XBOX_360_XBLA(?:_DLC)?$/i.test(id)) continue;
+    ids.add(id);
+  }
+  return [...ids].sort((a, b) => {
+    if (/^XBOX_360_XBLA$/i.test(a)) return -1;
+    if (/^XBOX_360_XBLA$/i.test(b)) return 1;
+    return a.localeCompare(b);
+  });
+}
+
 async function fetchJson(url, cookieHeader) {
   const response = await fetch(url, {
     headers: {
@@ -123,11 +132,17 @@ function encodePathSegment(value) {
 
 async function main() {
   const envMap = await loadLocalEnvMap();
-  const cookiePool = loadCookiePoolFromEnv(envMap);
-  const fallbackPair = resolveIaCookiePair(envMap);
-  if (!cookiePool.length && !fallbackPair) {
+  const supabaseUrl =
+    process.env.SUPABASE_URL ??
+    envMap.get("SUPABASE_URL") ??
+    process.env.VITE_SUPABASE_URL ??
+    envMap.get("VITE_SUPABASE_URL");
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? envMap.get("SUPABASE_SERVICE_ROLE_KEY");
+  const cookiePool = await loadCookiePool(envMap);
+  if (!cookiePool.length) {
     throw new Error(
-      "Missing IA cookie credentials. Set IA_COOKIE_POOL to a JSON array [{\"user\":\"...\",\"sig\":\"...\"},...] or IA_LOGGED_IN_USER / IA_LOGGED_IN_SIG in the environment."
+      "No IA cookies in Supabase ia_cookie_pool. Run npm run ia-cookies to add browser cookie exports."
     );
   }
 
@@ -147,7 +162,8 @@ async function main() {
   const redumpIds = extractRedumpIaIdentifiers(source);
   const dlcIds = extractDlcIaIdentifiers(source);
   const titleUpdateIds = extractTitleUpdateIaIdentifiers(source);
-  let identifiers = [...redumpIds, ...dlcIds, ...titleUpdateIds];
+  const xblaIds = extractXblaIaIdentifiers(source);
+  let identifiers = [...redumpIds, ...dlcIds, ...titleUpdateIds, ...xblaIds];
   if (IDENTIFIER_LIMIT > 0) {
     identifiers = identifiers.slice(0, IDENTIFIER_LIMIT);
   }
@@ -155,23 +171,30 @@ async function main() {
   let redumpCount = 0;
   let dlcCount = 0;
   let updateCount = 0;
+  let xblaCount = 0;
+  let xblaDlcCount = 0;
 
   for (const identifier of identifiers) {
     const metadataUrl = `https://archive.org/metadata/${encodeURIComponent(identifier)}?output=json`;
     try {
-      const pair = randomCookiePair(cookiePool) ?? fallbackPair;
+      const pair = randomCookiePair(cookiePool);
+      if (pair?.id) {
+        recordIaCookieUse(supabaseUrl, serviceKey, pair.id, "build");
+      }
       const cookieHeader = buildIaCookieHeader(pair);
       const metadata = await fetchJson(metadataUrl, cookieHeader);
       const files = Array.isArray(metadata.files) ? metadata.files : [];
       for (const file of files) {
         const filename = file?.name;
         if (typeof filename !== "string") continue;
-        if (!/\.(zip|iso|7z)$/i.test(filename)) continue;
+        if (!/\.(zip|iso|7z|rar)$/i.test(filename)) continue;
         if (FILTER_TO_MASTER && !targetFilenames.has(filename)) continue;
         if (map[filename]) continue;
         map[filename] = `https://archive.org/download/${encodeURIComponent(identifier)}/${encodePathSegment(filename)}`;
         if (/^XBOX_360_DLC_\d+$/i.test(identifier)) dlcCount += 1;
         else if (/^microsoft_xbox360_title-updates$/i.test(identifier)) updateCount += 1;
+        else if (/^XBOX_360_XBLA_DLC$/i.test(identifier)) xblaDlcCount += 1;
+        else if (/^XBOX_360_XBLA$/i.test(identifier)) xblaCount += 1;
         else redumpCount += 1;
       }
       // eslint-disable-next-line no-console
@@ -185,7 +208,7 @@ async function main() {
   await writeFile(OUTPUT_PATH, `${JSON.stringify(map, null, 2)}\n`, "utf8");
   // eslint-disable-next-line no-console
   console.log(
-    `Wrote ${Object.keys(map).length} mappings (${redumpCount} redump, ${dlcCount} DLC, ${updateCount} title updates) to ${OUTPUT_PATH}`
+    `Wrote ${Object.keys(map).length} mappings (${redumpCount} redump, ${dlcCount} DLC, ${updateCount} title updates, ${xblaCount} XBLA, ${xblaDlcCount} XBLA DLC) to ${OUTPUT_PATH}`
   );
 }
 

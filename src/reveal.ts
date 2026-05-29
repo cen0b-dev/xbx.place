@@ -56,7 +56,7 @@ export function observeRevealFirstRow(
   });
 }
 
-export function markVisible(elements: Iterable<HTMLElement>): void {
+function markVisible(elements: Iterable<HTMLElement>): void {
   for (const element of elements) {
     element.classList.add("reveal", "is-visible");
   }

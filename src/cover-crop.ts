@@ -1,11 +1,10 @@
 /** Reference width for Xbox 360 box art; top strip is cropped at this scale. */
-export const COVER_REF_WIDTH = 280;
-export const COVER_REF_HEIGHT = 387;
-export const COVER_CROP_TOP = 48;
+const COVER_REF_WIDTH = 280;
+const COVER_CROP_TOP = 48;
 
 const croppedCache = new Map<string, string>();
 
-export function cropTopForWidth(naturalWidth: number): number {
+function cropTopForWidth(naturalWidth: number): number {
   if (!naturalWidth) return COVER_CROP_TOP;
   return Math.round(COVER_CROP_TOP * (naturalWidth / COVER_REF_WIDTH));
 }

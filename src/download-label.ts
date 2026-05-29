@@ -5,7 +5,7 @@ export type DownloadDisplay = {
   meta: string | null;
 };
 
-const EXT_RE = /\.(zip|iso|7z)$/i;
+const EXT_RE = /\.(zip|iso|7z|rar)$/i;
 const BRACKET_RE = /\[.*?\]/gi;
 const REGION_RE = /\((USA|Europe(?:[^)]*)?|Japan|World|Australia(?:[^)]*)?|Region Free)\)/i;
 const LANG_RE = /\(([A-Za-z]{2}(?:,[A-Za-z]{2})+)\)/;

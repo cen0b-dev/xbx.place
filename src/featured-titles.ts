@@ -1,6 +1,6 @@
 import type { TitleEntry } from "./types";
 
-export const MARQUEE_TITLE_PATTERNS = [
+const MARQUEE_TITLE_PATTERNS = [
   "Halo 3",
   "Mass Effect 2",
   "Dark Souls",
@@ -10,7 +10,7 @@ export const MARQUEE_TITLE_PATTERNS = [
   "Forza Horizon 2"
 ];
 
-export function resolveMarqueeTitles(catalog: TitleEntry[]): TitleEntry[] {
+function resolveMarqueeTitles(catalog: TitleEntry[]): TitleEntry[] {
   const used = new Set<string>();
   const results: TitleEntry[] = [];
   for (const pattern of MARQUEE_TITLE_PATTERNS) {

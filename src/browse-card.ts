@@ -11,11 +11,11 @@ export function stars(rating: number | null | undefined): string {
   return `${html}</span>`;
 }
 
-export function ratingScore(rating: number | null | undefined): number {
+function ratingScore(rating: number | null | undefined): number {
   return Math.round(((rating ?? 0) / 5) * 100);
 }
 
-export function ratingScoreTier(score: number): string {
+function ratingScoreTier(score: number): string {
   if (score >= 90) return "exceptional";
   if (score >= 80) return "great";
   if (score >= 70) return "good";
@@ -97,7 +97,7 @@ function hoverPanelHtml(game: TitleEntry): string {
 function bindBrowseCardImage(card: HTMLElement, img: HTMLImageElement, game: TitleEntry, rawSrc?: string): void {
   img.decoding = "async";
   card.classList.add("is-loading");
-  const src = rawSrc ?? coverUrl(game.title_id);
+  const src = rawSrc ?? coverUrl(game);
   const fallbackSrc = `https://placehold.co/280x390/202020/ffffff.png?text=${encodeURIComponent(game.name)}`;
   bindCroppedCover(img, src, {
     onReady: () => {

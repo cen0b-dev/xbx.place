@@ -42,7 +42,7 @@ Figures from `public/master_index.json` / `data/x360db-index.json` (generated 20
 | Source | Role |
 |--------|------|
 | **x360db** | Title IDs, names, descriptions, developers, publishers, release dates, genres, regions, ratings, box art & backgrounds |
-| **Internet Archive** | Redump Xbox 360 zips (`microsoft_xbox360_*` buckets), DLC archives (`XBOX_360_DLC_1` … `_6`), title updates (`microsoft_xbox360_title-updates`) — indexed from the [/r/Roms megathread](https://r-roms.github.io/Microsoft/microsoft-xbox360) |
+| **Internet Archive** | Redump Xbox 360 zips (`microsoft_xbox360_*` buckets), DLC archives (`XBOX_360_DLC_1` … `_6`), XBLA (`XBOX_360_XBLA`, `XBOX_360_XBLA_DLC`), title updates (`microsoft_xbox360_title-updates`) — indexed from the [/r/Roms megathread](https://r-roms.github.io/Microsoft/microsoft-xbox360) |
 | **MiNERVA Archive** | Per-file rom pages, magnets, and `.torrent` files for Redump game zips (~29 TB full collection) |
 
 Build pipeline:
@@ -145,7 +145,7 @@ xbx.place does **not** buffer whole ROMs on Cloudflare. A Worker **authorizes** 
 | | |
 |--|--|
 | **Button** | Primary download button on each file row |
-| **Destination** | Worker `/download/file?key=…` (streams from IA CDN using pool cookies) |
+| **Destination** | Worker `/download/file?filename=…` (streams from IA CDN using pool cookies; saves as the catalog zip/rar name) |
 | **Behavior** | App calls Worker → `{ url }` → new tab; Worker resolves CDN with pool, then streams (Range-aware). IA does not issue cookieless expiring CDN URLs. |
 | **Speed** | Slower HTTP; reliable for all file types (games, DLC, title updates) |
 | **Coverage** | All 7,420 indexed files |

@@ -7,10 +7,8 @@
  * Manages download-proxy workers across one or more Cloudflare accounts.
  * Accounts are stored in scripts/.cf-accounts.json (gitignored).
  *
- * After every account change the script automatically:
- *   1. Syncs VITE_DOWNLOAD_PROXY_POOL in .env.local
- *   2. Pushes VITE_DOWNLOAD_PROXY_POOL to the GitHub repo variable (via gh CLI)
- *   3. Updates Supabase secrets used by the worker-stats Edge Function
+ * After every account change the script automatically syncs the worker_pool
+ * table in Supabase and updates Edge Function secrets for worker-stats.
  */
 
 import { execSync, execFileSync } from "node:child_process";
@@ -227,7 +225,6 @@ function wranglerDeploy(workerDir, workerName, accountId, apiToken) {
 async function uploadDownloadProxySecrets(accountId, workerName, apiToken) {
   const env = loadEnvLocal();
   const secrets = {
-    IA_COOKIE_POOL:            env.IA_COOKIE_POOL ?? "",
     SUPABASE_URL:              env.SUPABASE_URL ?? "",
     SUPABASE_ANON_KEY:         env.SUPABASE_ANON_KEY ?? "",
     SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY ?? "",
@@ -299,14 +296,14 @@ async function actionAddAccount(config) {
 // Action: Deploy download-proxy
 // ---------------------------------------------------------------------------
 
-async function deployToAccount(config, idx) {
+async function deployToAccount(config, idx, { syncAfter = true } = {}) {
   const account = config.accounts[idx];
   const { accountId, apiToken, workerName } = account;
   const workerDir = join(ROOT, "workers", "download-proxy");
 
   head(`Deploying ${workerName} to ${account.label}...`);
   try { wranglerDeploy(workerDir, workerName, accountId, apiToken); }
-  catch { fail("wrangler deploy failed."); return; }
+  catch { fail("wrangler deploy failed."); return false; }
 
   const subdomain = await getWorkerSubdomain(accountId, apiToken);
   if (subdomain) {
@@ -319,7 +316,25 @@ async function deployToAccount(config, idx) {
 
   saveConfig(config);
   console.log();
-  await autoSyncAll(config);
+  if (syncAfter) await autoSyncAll(config);
+  return true;
+}
+
+async function actionDeployAll(config) {
+  if (!config.accounts.length) {
+    warn("No accounts managed yet. Add one first.");
+    return;
+  }
+  head(`Deploying download-proxy to ${config.accounts.length} account(s)...`);
+  let okCount = 0;
+  for (let i = 0; i < config.accounts.length; i += 1) {
+    if (await deployToAccount(config, i, { syncAfter: false })) okCount += 1;
+  }
+  if (okCount > 0) {
+    head("Syncing worker pool...");
+    await autoSyncAll(config);
+    ok(`Deployed ${okCount}/${config.accounts.length} worker(s).`);
+  }
 }
 
 async function actionDeploy(config) {
@@ -357,7 +372,7 @@ async function actionDeployEdgeFunction(config) {
     if (supaUrl) {
       const fnUrl = `${supaUrl}/functions/v1/worker-stats`;
       console.log(`\n  Dashboard backend: ${link(fnUrl)}`);
-      console.log(`  Dashboard:         ${link("https://xbx.place/workers")}`);
+      console.log(`  Dashboard:         ${link("https://xbx.place/status")}`);
     }
   } catch {
     fail("Edge Function deploy failed (see output above).");
@@ -419,7 +434,7 @@ function printStatus(config) {
   const supaUrl = env.VITE_SUPABASE_URL ?? env.SUPABASE_URL ?? "";
   if (supaUrl && config.dashboardPassword) {
     const fnUrl = `${supaUrl}/functions/v1/worker-stats`;
-    console.log(`\n  ${C.cyan}Dashboard${C.reset}     : ${link("https://xbx.place/workers")}`);
+    console.log(`\n  ${C.cyan}Dashboard${C.reset}     : ${link("https://xbx.place/status")}`);
     console.log(`  ${C.cyan}Stats backend${C.reset} : ${link(fnUrl)}`);
   }
 }
@@ -430,6 +445,12 @@ function printStatus(config) {
 
 async function main() {
   const config = loadConfig();
+  const cli = process.argv[2]?.trim();
+
+  if (cli === "deploy-all") {
+    await actionDeployAll(config);
+    return;
+  }
 
   const MENU = [
     "Add new Cloudflare account",

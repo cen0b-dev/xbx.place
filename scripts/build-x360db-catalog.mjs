@@ -16,6 +16,8 @@ const X360DB_INFO_URL = "https://raw.githubusercontent.com/xenia-manager/x360db/
 const REDUMP_ONLY = process.env.X360DB_REDUMP_ONLY !== "0";
 const DETAIL_BATCH_SIZE = Number.parseInt(process.env.X360DB_DETAIL_BATCH_SIZE ?? "24", 10);
 const DLC_ARCHIVE_RE = /\/XBOX_360_DLC_\d+\//i;
+const XBLA_DLC_ARCHIVE_RE = /\/XBOX_360_XBLA_DLC\//i;
+const XBLA_ARCHIVE_RE = /\/XBOX_360_XBLA\//i;
 const TU_ARCHIVE_RE = /\/microsoft_xbox360_title-updates\//i;
 
 const TOKEN_STOP_WORDS = new Set([
@@ -81,7 +83,7 @@ function romanToArabic(value) {
 function normalizeForMatch(value) {
   return romanToArabic(foldUnicode(decodeHtmlEntities(value)))
     .toLowerCase()
-    .replace(/\.(zip|iso|7z)$/g, "")
+    .replace(/\.(zip|iso|7z|rar)$/g, "")
     .replace(/\[[^\]]*\]|\([^)]*\)/g, " ")
     .replace(/\bdisc\s*\d+\b/g, " ")
     .replace(/\bpart\s*\d+\b/g, " ")
@@ -121,7 +123,7 @@ async function loadParentOverrides() {
 }
 
 function stripRedumpLabel(filename) {
-  let base = displayName(filename.replace(/\.(zip|iso|7z)$/i, ""));
+  let base = displayName(filename.replace(/\.(zip|iso|7z|rar)$/i, ""));
   for (let i = 0; i < 5; i += 1) {
     const next = base
       .replace(
@@ -284,8 +286,12 @@ function parseUpdateVersion(filename) {
 
 function buildDownloadEntry(filename, archiveUrl, type = "Game") {
   if (typeof archiveUrl !== "string" || !archiveUrl) return null;
-  const label = displayName(filename.replace(/\.(zip|iso|7z)$/i, ""));
-  const isRedump = !DLC_ARCHIVE_RE.test(archiveUrl) && !TU_ARCHIVE_RE.test(archiveUrl);
+  const label = displayName(filename.replace(/\.(zip|iso|7z|rar)$/i, ""));
+  const isRedump =
+    !DLC_ARCHIVE_RE.test(archiveUrl) &&
+    !XBLA_DLC_ARCHIVE_RE.test(archiveUrl) &&
+    !XBLA_ARCHIVE_RE.test(archiveUrl) &&
+    !TU_ARCHIVE_RE.test(archiveUrl);
   const updateVersion = type === "Update" ? parseUpdateVersion(filename) : undefined;
   return {
     filename,
@@ -302,7 +308,7 @@ function buildDownloadEntry(filename, archiveUrl, type = "Game") {
 
 function isDlcFilename(filename, archiveUrl) {
   if (TU_ARCHIVE_RE.test(archiveUrl)) return false;
-  if (DLC_ARCHIVE_RE.test(archiveUrl)) return true;
+  if (DLC_ARCHIVE_RE.test(archiveUrl) || XBLA_DLC_ARCHIVE_RE.test(archiveUrl)) return true;
   if (/\((Addon|Update)\)/i.test(filename)) return true;
   if (/\bDLC\b/i.test(filename) && /\((Install Disc|DLC Installer)\)/i.test(filename)) return true;
   return false;
@@ -316,7 +322,7 @@ function downloadType(filename, archiveUrl) {
 }
 
 function stripDlcDecorations(filename) {
-  let base = displayName(filename.replace(/\.(zip|iso|7z)$/i, ""));
+  let base = displayName(filename.replace(/\.(zip|iso|7z|rar)$/i, ""));
   base = base.replace(/\s*\((Addon|DLC|Update)\)\s*$/gi, "").trim();
   base = base.replace(/\s*\(v\d+(?:\.\d+)?(?:\s+\d+)?[a-z]?\)\s*/gi, " ").trim();
   base = base.replace(/\s*\((Alt(?:\s+\d+)?|UK|LV)\)\s*/gi, " ").trim();
@@ -350,12 +356,111 @@ function dlcMatchCandidates(filename, parentOverrides) {
   return [...new Set(candidates.filter(Boolean))];
 }
 
-function syntheticTitleId(seed) {
+function syntheticTitleId(seed, prefix = "DLC") {
   let hash = 0;
   for (let i = 0; i < seed.length; i += 1) {
     hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
   }
-  return `DLC${hash.toString(16).padStart(8, "0").slice(-8).toUpperCase()}`;
+  return `${prefix}${hash.toString(16).padStart(8, "0").slice(-8).toUpperCase()}`;
+}
+
+function stripSeriesSuffix(name) {
+  return name
+    .replace(/\s+Episode\s+\d+.*$/i, "")
+    .replace(/\s+EP\s*\d+.*$/i, "")
+    .replace(/\s+Season\s+(Two|Three|\d+).*$/i, "")
+    .replace(/\s+Season Pass.*$/i, "")
+    .replace(/\s+TU\d+.*$/i, "")
+    .trim();
+}
+
+function buildTitleIndexes(titles, parentOverrides) {
+  return {
+    nameIndex: buildNameIndex(titles, parentOverrides),
+    titlesByLength: [...titles].sort(
+      (a, b) => normalizeForMatch(b.name).length - normalizeForMatch(a.name).length
+    ),
+    titleById: new Map(titles.map((title) => [title.title_id.toUpperCase(), title])),
+  };
+}
+
+function findCoverDonorTitle(name, nameIndex, titlesByLength, titleById, parentOverrides) {
+  const candidates = [name];
+  const stripped = stripSeriesSuffix(name);
+  if (stripped && stripped !== name) candidates.push(stripped);
+
+  for (const candidate of candidates) {
+    for (const key of titleMatchKeys(candidate, parentOverrides)) {
+      const title = nameIndex.get(key);
+      if (title && /^[A-F0-9]{8}$/i.test(title.title_id)) return title;
+      const overrideMatch = resolveOverrideCandidate(key, titleById, parentOverrides);
+      if (overrideMatch && /^[A-F0-9]{8}$/i.test(overrideMatch.title_id)) return overrideMatch;
+    }
+  }
+
+  let best = null;
+  let bestScore = 0;
+  for (const title of titlesByLength) {
+    if (!/^[A-F0-9]{8}$/i.test(title.title_id)) continue;
+    const score = tokenOverlapScore(stripped || name, title.name);
+    if (score > bestScore && score >= 0.55) {
+      bestScore = score;
+      best = title;
+    }
+  }
+  return best;
+}
+
+function orphanCoverMetadata(name, nameIndex, titlesByLength, titleById, parentOverrides) {
+  const donor = findCoverDonorTitle(name, nameIndex, titlesByLength, titleById, parentOverrides);
+  if (!donor) return { metadata: {}, artwork: undefined };
+  return {
+    metadata: { cover_title_id: donor.title_id.toUpperCase() },
+    artwork: donor.artwork,
+  };
+}
+
+function attachOrphanXblaDownloads(titles, iaMap, indexes, parentOverrides) {
+  const { nameIndex, titlesByLength, titleById } = indexes;
+  const usedFilenames = new Set();
+  for (const title of titles) {
+    for (const dl of title.downloads ?? []) {
+      usedFilenames.add(dl.filename);
+    }
+  }
+
+  const orphanTitles = [];
+  for (const [filename, archiveUrl] of Object.entries(iaMap)) {
+    if (typeof filename !== "string" || typeof archiveUrl !== "string") continue;
+    if (!XBLA_ARCHIVE_RE.test(archiveUrl) || XBLA_DLC_ARCHIVE_RE.test(archiveUrl)) continue;
+    if (usedFilenames.has(filename)) continue;
+    const dl = buildDownloadEntry(filename, archiveUrl, "Game");
+    if (!dl) continue;
+    const name = stripRedumpLabel(filename);
+    const display = displayName(name);
+    const { metadata: coverMeta, artwork } = orphanCoverMetadata(
+      display,
+      nameIndex,
+      titlesByLength,
+      titleById,
+      parentOverrides
+    );
+    orphanTitles.push({
+      title_id: syntheticTitleId(name, "XBLA"),
+      name: display,
+      description: "Xbox Live Arcade title from Internet Archive (not matched in x360db catalog).",
+      release_date: null,
+      rating: null,
+      regions: mergeRegions([dl]),
+      genre: [],
+      downloads: [dl],
+      artwork,
+      metadata: { source: "ia-xbla", match_status: "unmatched", ...coverMeta }
+    });
+    usedFilenames.add(filename);
+  }
+
+  return orphanTitles;
 }
 
 function buildIaIndex(map, parentOverrides) {
@@ -461,12 +566,8 @@ function findTitleForDlc(filename, nameIndex, titlesByLength, titleById, parentO
   return null;
 }
 
-function attachDlcDownloads(titles, dlcEntries, parentOverrides) {
-  const nameIndex = buildNameIndex(titles, parentOverrides);
-  const titlesByLength = [...titles].sort(
-    (a, b) => normalizeForMatch(b.name).length - normalizeForMatch(a.name).length
-  );
-  const titleById = new Map(titles.map((title) => [title.title_id.toUpperCase(), title]));
+function attachDlcDownloads(titles, dlcEntries, indexes, parentOverrides) {
+  const { nameIndex, titlesByLength, titleById } = indexes;
   const unmatched = new Map();
   let matched = 0;
 
@@ -491,17 +592,27 @@ function attachDlcDownloads(titles, dlcEntries, parentOverrides) {
     unmatched.set(orphanKey, bucket);
   }
 
-  const orphanTitles = [...unmatched.values()].map((bucket) => ({
-    title_id: syntheticTitleId(bucket.name),
-    name: bucket.name,
-    description: "Downloadable content from Internet Archive (parent game not matched in x360db).",
-    release_date: null,
-    rating: null,
-    regions: mergeRegions(bucket.downloads),
-    genre: [],
-    downloads: bucket.downloads,
-    metadata: { source: "ia-dlc", match_status: "unmatched" }
-  }));
+  const orphanTitles = [...unmatched.values()].map((bucket) => {
+    const { metadata: coverMeta, artwork } = orphanCoverMetadata(
+      bucket.name,
+      nameIndex,
+      titlesByLength,
+      titleById,
+      parentOverrides
+    );
+    return {
+      title_id: syntheticTitleId(bucket.name),
+      name: bucket.name,
+      description: "Downloadable content from Internet Archive (parent game not matched in x360db).",
+      release_date: null,
+      rating: null,
+      regions: mergeRegions(bucket.downloads),
+      genre: [],
+      downloads: bucket.downloads,
+      artwork,
+      metadata: { source: "ia-dlc", match_status: "unmatched", ...coverMeta }
+    };
+  });
 
   return { matched, orphanTitles };
 }
@@ -618,8 +729,16 @@ async function main() {
     };
   });
 
-  const { matched: dlcMatched, orphanTitles } = attachDlcDownloads(titles, dlcEntries, parentOverrides);
-  const allTitles = [...titles, ...orphanTitles];
+  const titleIndexes = buildTitleIndexes(titles, parentOverrides);
+  const { matched: dlcMatched, orphanTitles } = attachDlcDownloads(
+    titles,
+    dlcEntries,
+    titleIndexes,
+    parentOverrides
+  );
+  let allTitles = [...titles, ...orphanTitles];
+  const xblaOrphanTitles = attachOrphanXblaDownloads(allTitles, iaMap, titleIndexes, parentOverrides);
+  allTitles = [...allTitles, ...xblaOrphanTitles];
 
   const filteredTitles = REDUMP_ONLY ? allTitles.filter((t) => t.downloads.length > 0) : allTitles;
 
@@ -641,7 +760,8 @@ async function main() {
 
   const canonical = {
     generatedAt: new Date().toISOString(),
-    source: "x360db + ia-file-map (archive.org redump + XBOX_360_DLC + title updates) + minerva-archive.org rom pages",
+    source:
+      "x360db + ia-file-map (archive.org redump + XBOX_360_DLC + XBOX_360_XBLA + title updates) + minerva-archive.org rom pages",
     totalTitles: filteredTitles.length,
     titlesWithDownloads: allTitles.filter((t) => t.downloads.length > 0).length,
     titlesWithDlc,
@@ -658,7 +778,7 @@ async function main() {
   await writeFile(OUTPUT_CANONICAL, `${JSON.stringify(canonical, null, 2)}\n`, "utf8");
   await writeFile(UNMATCHED_REPORT_PATH, `${JSON.stringify(unmatchedReport, null, 2)}\n`, "utf8");
   console.log(
-    `Wrote ${filteredTitles.length} titles (${canonical.titlesWithDownloads} with downloads, ${titlesWithDlc} with DLC, ${dlcMatched}/${dlcEntries.length} DLC matched, ${orphanTitles.length} orphan buckets, redumpOnly=${REDUMP_ONLY})`
+    `Wrote ${filteredTitles.length} titles (${canonical.titlesWithDownloads} with downloads, ${titlesWithDlc} with DLC, ${dlcMatched}/${dlcEntries.length} DLC matched, ${orphanTitles.length} DLC orphan buckets, ${xblaOrphanTitles.length} XBLA orphan titles, redumpOnly=${REDUMP_ONLY})`
   );
 }
 

@@ -1,8 +1,104 @@
 {
-  "generatedAt": "2026-05-29T01:18:45.399Z",
-  "orphanBuckets": 21,
-  "orphanFiles": 45,
+  "generatedAt": "2026-05-29T03:20:40.730Z",
+  "orphanBuckets": 68,
+  "orphanFiles": 93,
   "buckets": [
+    {
+      "name": "Assassins_Creed_IV_Black_Flag",
+      "title_id": "DLC96121A03",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Assassins_Creed_IV_Black_Flag.rar"
+      ]
+    },
+    {
+      "name": "BlazBlue_Continum_Shift",
+      "title_id": "DLC0E85CC54",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "BlazBlue_Continum_Shift.rar"
+      ]
+    },
+    {
+      "name": "Bullet_Witch",
+      "title_id": "DLC3F6E4A4A",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Bullet_Witch.rar"
+      ]
+    },
+    {
+      "name": "Cabela__x27_s_African_Safari",
+      "title_id": "DLC95179F8F",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Cabela__x27_s_African_Safari.rar"
+      ]
+    },
+    {
+      "name": "Cabela__x27_s_Big_Game_Hunter",
+      "title_id": "DLC63B95DAA",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Cabela__x27_s_Big_Game_Hunter.rar"
+      ]
+    },
+    {
+      "name": "Cabela__x27_s_Dangerous_Hunts_2013",
+      "title_id": "DLCFF23F738",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Cabela__x27_s_Dangerous_Hunts_2013.rar"
+      ]
+    },
+    {
+      "name": "Cross_Edge_Dash",
+      "title_id": "DLC0788D775",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Cross_Edge_Dash.rar"
+      ]
+    },
+    {
+      "name": "DLC_Content",
+      "title_id": "DLC08F590D5",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "DLC_Content.rar"
+      ]
+    },
+    {
+      "name": "Dante__x27_s_Inferno",
+      "title_id": "DLC9171BFDF",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Dante__x27_s_Inferno.rar"
+      ]
+    },
+    {
+      "name": "DeathSmiles_2X",
+      "title_id": "DLC75F07CC6",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "DeathSmiles_2X.rar"
+      ]
+    },
+    {
+      "name": "Diablo_III",
+      "title_id": "DLC0E9C2173",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Diablo_III.rar"
+      ]
+    },
+    {
+      "name": "Diablo_III_Reaper_of_Souls",
+      "title_id": "DLC2164F9DC",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Diablo_III_Reaper_of_Souls.rar"
+      ]
+    },
     {
       "name": "DmC",
       "title_id": "DLC00010CBA",
@@ -10,6 +106,111 @@
       "sampleFilenames": [
         "DmC - Devil May Cry - Vergil's Downfall (World) (Addon).zip",
         "DmC - Devil May Cry (World) (v1) (021BEF7B) (Title Update).zip"
+      ]
+    },
+    {
+      "name": "Dodonpachi_Dai_Fukkatsu",
+      "title_id": "DLC356D6ABB",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Dodonpachi_Dai_Fukkatsu.rar"
+      ]
+    },
+    {
+      "name": "Dragon__x27_s_Dogma",
+      "title_id": "DLC2F8C302F",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Dragon__x27_s_Dogma.rar"
+      ]
+    },
+    {
+      "name": "Dragonball_Xenoverse__DLC",
+      "title_id": "DLCBBD5F601",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Dragonball_Xenoverse__DLC-NTSCU_.rar"
+      ]
+    },
+    {
+      "name": "Dream_Club",
+      "title_id": "DLCB069AFB2",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Dream_Club.rar"
+      ]
+    },
+    {
+      "name": "Dream_Club_Mahjong",
+      "title_id": "DLC3820D565",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Dream_Club_Mahjong.rar"
+      ]
+    },
+    {
+      "name": "Dream_Club_Zero",
+      "title_id": "DLCFE6F7B35",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Dream_Club_Zero.rar"
+      ]
+    },
+    {
+      "name": "Dynasty_Warriors_Strikeforce",
+      "title_id": "DLC97001F7A",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Dynasty_Warriors_Strikeforce.rar"
+      ]
+    },
+    {
+      "name": "F.E.A.R._3",
+      "title_id": "DLC6309D6CE",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "F.E.A.R._3.rar"
+      ]
+    },
+    {
+      "name": "Fable_II",
+      "title_id": "DLC202AE71F",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Fable_II.rar"
+      ]
+    },
+    {
+      "name": "Fable_III",
+      "title_id": "DLCE531FD0A",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Fable_III.rar"
+      ]
+    },
+    {
+      "name": "GTA_IV",
+      "title_id": "DLC7DE6C458",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "GTA_IV.rar"
+      ]
+    },
+    {
+      "name": "GTA_V",
+      "title_id": "DLC040FB3CB",
+      "fileCount": 2,
+      "sampleFilenames": [
+        "GTA_V.rar",
+        "GTA_V_-_I__x27_ll_Gotten_Gains___TU25.rar"
+      ]
+    },
+    {
+      "name": "Gal_Gun",
+      "title_id": "DLC577EB613",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Gal_Gun.rar"
       ]
     },
     {
@@ -23,6 +224,14 @@
       ]
     },
     {
+      "name": "Hokuto_Musou",
+      "title_id": "DLC3F856FDE",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Hokuto_Musou.rar"
+      ]
+    },
+    {
       "name": "Kinect Fun Labs",
       "title_id": "DLC9D5082C1",
       "fileCount": 6,
@@ -33,11 +242,171 @@
       ]
     },
     {
+      "name": "Magnacarta_2",
+      "title_id": "DLC376857CE",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Magnacarta_2.rar"
+      ]
+    },
+    {
+      "name": "Mamoru_Kun",
+      "title_id": "DLC9BDE6DFE",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Mamoru_Kun.rar"
+      ]
+    },
+    {
+      "name": "Max_Anarchy",
+      "title_id": "DLC94F7AABB",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Max_Anarchy.rar"
+      ]
+    },
+    {
+      "name": "Midnight_Club_LA",
+      "title_id": "DLC0B42232F",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Midnight_Club_LA.rar"
+      ]
+    },
+    {
+      "name": "Muchi_Muchi_Pork",
+      "title_id": "DLC3069DF5E",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Muchi_Muchi_Pork.rar"
+      ]
+    },
+    {
+      "name": "Mushihimesame",
+      "title_id": "DLCD7EB1C2B",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Mushihimesame.rar"
+      ]
+    },
+    {
+      "name": "Nail__x27_d",
+      "title_id": "DLCDAD1C28C",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Nail__x27_d.rar"
+      ]
+    },
+    {
+      "name": "Need_for_Speed_Pro_Street",
+      "title_id": "DLCA9BA19CC",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Need_for_Speed_Pro_Street.rar"
+      ]
+    },
+    {
+      "name": "Oblivion_IV",
+      "title_id": "DLCBA867C0A",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Oblivion_IV.rar"
+      ]
+    },
+    {
+      "name": "Onechambara_Z_Kagura",
+      "title_id": "DLC3BDFFED2",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Onechambara_Z_Kagura.rar"
+      ]
+    },
+    {
+      "name": "Ore_no_Yome_Anata_Dake_no_Hanayome",
+      "title_id": "DLC21C1D9FE",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Ore_no_Yome_Anata_Dake_no_Hanayome.rar"
+      ]
+    },
+    {
+      "name": "Otomedius_Gorgeous",
+      "title_id": "DLC0CC8177F",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Otomedius_Gorgeous.rar"
+      ]
+    },
+    {
       "name": "Photo Party Misc",
       "title_id": "DLC83BB14F4",
       "fileCount": 1,
       "sampleFilenames": [
         "Photo Party Misc (World) (Addon).zip"
+      ]
+    },
+    {
+      "name": "Raiden_IV",
+      "title_id": "DLC3D132F19",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Raiden_IV.rar"
+      ]
+    },
+    {
+      "name": "RUSE",
+      "title_id": "DLC00268FD5",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "RUSE.rar"
+      ]
+    },
+    {
+      "name": "Scene_It_Box_Office_Smash",
+      "title_id": "DLC01D0D0CE",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Scene_It_Box_Office_Smash.rar"
+      ]
+    },
+    {
+      "name": "Senko_Ronde_Rev._X",
+      "title_id": "DLC92D1A350",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Senko_Ronde_Rev._X.rar"
+      ]
+    },
+    {
+      "name": "Shin_Hokuto_Musou",
+      "title_id": "DLC74C52DA3",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Shin_Hokuto_Musou.rar"
+      ]
+    },
+    {
+      "name": "Sniper_Elite_III",
+      "title_id": "DLC0198D42D",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Sniper_Elite_III.rar"
+      ]
+    },
+    {
+      "name": "Squads_Update_FIFA_14_",
+      "title_id": "DLC449F158B",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Squads_Update_FIFA_14_-_15_-_2014_World_Cup_Brazil.rar"
+      ]
+    },
+    {
+      "name": "Strike_Witches",
+      "title_id": "DLCA76E3728",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Strike_Witches.rar"
       ]
     },
     {
@@ -177,6 +546,14 @@
       "sampleFilenames": [
         "Zune Preview (World) (v3).zip",
         "Zune Preview (World) (v5).zip"
+      ]
+    },
+    {
+      "name": "Street Fighter III Third Strike Online Edition",
+      "title_id": "DLCB1A619EF",
+      "fileCount": 1,
+      "sampleFilenames": [
+        "Street Fighter III Third Strike Online Edition.rar"
       ]
     }
   ]
