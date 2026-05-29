@@ -23,6 +23,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
+      - run: pip install Pillow --quiet
       - run: npm ci
       - run: npm run build
         env:
