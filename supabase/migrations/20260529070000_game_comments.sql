@@ -20,17 +20,20 @@ create index if not exists game_comments_user_id_idx
 alter table public.game_comments enable row level security;
 
 -- Anyone (including anon) can read comments.
-create policy if not exists "anyone can read game comments"
+drop policy if exists "anyone can read game comments" on public.game_comments;
+create policy "anyone can read game comments"
   on public.game_comments for select
   using (true);
 
 -- Authenticated users can post comments under their own user_id.
-create policy if not exists "authenticated users can post comments"
+drop policy if exists "authenticated users can post comments" on public.game_comments;
+create policy "authenticated users can post comments"
   on public.game_comments for insert to authenticated
   with check (auth.uid() = user_id);
 
 -- Users can only delete their own comments.
-create policy if not exists "users can delete own comments"
+drop policy if exists "users can delete own comments" on public.game_comments;
+create policy "users can delete own comments"
   on public.game_comments for delete to authenticated
   using (auth.uid() = user_id);
 

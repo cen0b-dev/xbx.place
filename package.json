@@ -18,6 +18,7 @@
     "preview": "vite preview",
     "workers": "node scripts/manage-workers.mjs",
     "workers:deploy-all": "node scripts/manage-workers.mjs deploy-all",
+    "workers:sync-secrets": "node scripts/manage-workers.mjs sync-secrets",
     "workers:waf": "node scripts/setup-download-waf.mjs",
     "ia-cookies": "node scripts/manage-ia-cookies.mjs"
   },

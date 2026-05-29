@@ -8,16 +8,19 @@ import {
   type AuthMode
 } from "./auth";
 import {
-  createCollection,
+  COLLECTION_DESCRIPTION_MAX_LEN,
   deleteCollection,
   loadCollectionItems,
+  loadCollectionPreviewIds,
   loadMyCollections,
   loadPublicCollections,
+  removeTitleFromCollection,
   updateCollection,
   type CollectionWithCount
 } from "./collections";
 import { bindCroppedCover } from "./cover-crop";
 import { coverUrl, loadTitles } from "./data";
+import { DISCORD_INVITE_URL } from "./discord";
 import { checkboxHtml } from "./form-controls";
 import {
   fallbackGamerpic,
@@ -41,6 +44,7 @@ let activeProfile: Profile | null = null;
 let viewedProfile: Profile | PublicProfile | null = null;
 let profileViewOwner = true;
 let profileCollections: CollectionWithCount[] = [];
+let editingCollectionId: string | null = null;
 let titleIndexPromise: Promise<Map<string, TitleEntry>> | null = null;
 
 function escapeHtml(value: string): string {
@@ -64,7 +68,9 @@ function formatMemberSince(iso: string | undefined): string {
 function setAuthMode(mode: AuthMode): void {
   authMode = mode;
   document.querySelectorAll<HTMLElement>("[data-auth-mode]").forEach((node) => {
-    node.classList.toggle("active", node.dataset.authMode === mode);
+    const active = node.dataset.authMode === mode;
+    node.classList.toggle("active", active);
+    node.setAttribute("aria-selected", active ? "true" : "false");
   });
 
   const title = document.getElementById("auth-title");
@@ -112,11 +118,15 @@ function setAuthBusy(busy: boolean): void {
 
 export function openAuthModal(reason?: string, mode: AuthMode = "sign-in"): void {
   const body = document.getElementById("auth-body");
-  if (body && reason) {
-    body.textContent = reason;
-  } else if (body) {
-    body.textContent =
-      "Sign in or create a free account to save your profile, gamerpic, and game collections.";
+  if (body) {
+    const copy = reason?.trim();
+    if (copy) {
+      body.textContent = copy;
+      body.classList.remove("hidden");
+    } else {
+      body.textContent = "";
+      body.classList.add("hidden");
+    }
   }
   setAuthError(null);
   setAuthMode(mode);
@@ -208,13 +218,46 @@ function setProfileBannerPreview(profile: Profile | PublicProfile | null, userId
   const bannerPreview = document.getElementById("profile-banner-preview");
   if (!bannerPreview) return;
   const url = profile ? profileBannerImage(profile, userId ?? profile.id) : null;
-  bannerPreview.classList.toggle("profile-hub-banner--custom", Boolean(url));
-  bannerPreview.classList.toggle("profile-hub-banner--fallback", !url);
+  bannerPreview.classList.toggle("profile-page-bg--custom", Boolean(url));
+  bannerPreview.classList.toggle("profile-page-bg--fallback", !url);
   if (url) {
     bannerPreview.style.backgroundImage = `url("${url}")`;
   } else {
     bannerPreview.style.backgroundImage = "";
   }
+}
+
+function collectionDescriptionExcerpt(description: string | null | undefined): string {
+  const copy = description?.trim();
+  if (!copy) return "No description yet.";
+  if (copy.length <= 120) return copy;
+  return `${copy.slice(0, 117)}…`;
+}
+
+function profileCollectionPreviewMarkup(
+  previewIds: string[],
+  titleIndex: Map<string, TitleEntry>
+): string {
+  const ids = previewIds.slice(0, 3);
+  if (!ids.length) {
+    return `<div class="collections-discover-previews collections-discover-previews--empty" aria-hidden="true">
+      <i class="fa-solid fa-folder-open"></i>
+    </div>`;
+  }
+
+  return `<div class="collections-discover-previews collections-discover-previews--fan">${ids
+    .map((titleId, index) => {
+      const game = titleIndex.get(titleId);
+      if (!game) {
+        return `<div class="collections-discover-preview collections-discover-preview--missing" style="--preview-i:${index}"></div>`;
+      }
+      return `
+        <div class="collections-discover-preview cover-crop-view" style="--preview-i:${index}">
+          <img alt="" loading="lazy" data-cover-id="${escapeHtml(game.title_id)}" />
+        </div>
+      `;
+    })
+    .join("")}</div>`;
 }
 
 function publicProfileRouteUrl(gamertag: string): string {
@@ -228,7 +271,6 @@ function updateProfileOwnerControls(isOwner: boolean): void {
   document.getElementById("profile-edit")?.classList.toggle("hidden", !isOwner);
   document.getElementById("profile-copy-link")?.classList.toggle("hidden", !isOwner);
   document.getElementById("profile-account-section")?.classList.toggle("hidden", !isOwner);
-  document.getElementById("profile-collection-create")?.classList.toggle("hidden", !isOwner);
 }
 
 function showProfileNotFound(show: boolean): void {
@@ -256,133 +298,255 @@ function fillPublicProfileView(profile: PublicProfile): void {
   showProfileNotFound(false);
 }
 
-async function renderCollectionGames(container: HTMLElement, collectionId: string): Promise<void> {
-  const titleIds = await loadCollectionItems(collectionId);
-  const index = await getTitleIndex();
-  if (!titleIds.length) {
-    container.innerHTML = `<p class="profile-collection-empty">No games in this collection yet.</p>`;
-    return;
-  }
-
-  container.innerHTML = `<div class="profile-collection-games-grid">${titleIds
-    .map((titleId) => {
-      const game = index.get(titleId);
-      if (!game) {
-        return `<div class="profile-collection-game profile-collection-game--missing"><span>${escapeHtml(titleId)}</span></div>`;
-      }
-      return `
-        <button class="profile-collection-game" type="button" data-title-id="${escapeHtml(game.title_id)}">
-          <div class="profile-collection-game-cover cover-crop-view">
-            <img alt="" loading="lazy" data-cover-id="${escapeHtml(game.title_id)}" />
-          </div>
-          <span>${escapeHtml(game.name)}</span>
-        </button>
-      `;
-    })
-    .join("")}</div>`;
-
-  container.querySelectorAll<HTMLButtonElement>("[data-title-id]").forEach((button) => {
-    const img = button.querySelector<HTMLImageElement>("[data-cover-id]");
-    const titleId = button.dataset.titleId;
-    const game = titleId ? index.get(titleId) : undefined;
-    if (img && game) {
-      bindCroppedCover(img, coverUrl(game), {
-        fallbackSrc: `https://placehold.co/280x350/202020/ffffff.png?text=${encodeURIComponent(button.querySelector("span")?.textContent ?? "Game")}`
-      });
-    }
-    button.addEventListener("click", () => {
-      if (!titleId) return;
-      window.dispatchEvent(new CustomEvent("xbx-open-game", { detail: { titleId } }));
-    });
-  });
+function closeCollectionEditModal(): void {
+  document.getElementById("profileCollectionEditMod")?.classList.remove("show");
+  editingCollectionId = null;
 }
 
-function renderProfileCollectionCards(isOwner: boolean): void {
-  const grid = document.getElementById("profile-collections-grid");
-  if (!grid) return;
+function setCollectionSettingsStatus(message: string, isError = false): void {
+  const status = document.getElementById("profile-collection-edit-status");
+  if (!status) return;
+  status.textContent = message;
+  status.className = `profile-collection-settings-status${isError ? " error" : ""}`;
+  status.classList.remove("hidden");
+}
 
-  if (!profileCollections.length) {
-    grid.innerHTML = `<p class="profile-collections-empty">${isOwner ? "Create a collection to start saving games." : "No public collections yet."}</p>`;
+function fillCollectionEditForm(collection: CollectionWithCount): void {
+  const title = document.getElementById("profile-collection-edit-title");
+  const nameInput = document.getElementById("profile-collection-edit-name") as HTMLInputElement | null;
+  const descriptionInput = document.getElementById(
+    "profile-collection-edit-description"
+  ) as HTMLTextAreaElement | null;
+  const publicInput = document.getElementById("profile-collection-edit-public") as HTMLInputElement | null;
+  const status = document.getElementById("profile-collection-edit-status");
+
+  if (title) title.textContent = collection.name;
+  if (nameInput) nameInput.value = collection.name;
+  if (descriptionInput) descriptionInput.value = collection.description ?? "";
+  if (publicInput) publicInput.checked = collection.is_public;
+  status?.classList.add("hidden");
+  const deleteBtn = document.getElementById("profile-collection-edit-delete");
+  deleteBtn?.setAttribute("data-collection-id", collection.id);
+}
+
+async function renderCollectionManageGames(collectionId: string): Promise<void> {
+  const container = document.getElementById("profile-collection-manage-games");
+  if (!container) return;
+
+  const titleIds = await loadCollectionItems(collectionId);
+  const index = await getTitleIndex();
+
+  if (!titleIds.length) {
+    container.innerHTML = `<p class="profile-collections-empty">No games in this collection yet. Add games from a title page.</p>`;
     return;
   }
 
-  grid.innerHTML = profileCollections
-    .map((collection) => {
-      const visibility = collection.is_public ? "Public" : "Private";
-      const actions = isOwner
-        ? `
-          <div class="profile-collection-actions">
-            <button class="profile-collection-action" type="button" data-action="toggle-public" data-collection-id="${collection.id}">
-              ${collection.is_public ? "Make private" : "Make public"}
-            </button>
-            <button class="profile-collection-action" type="button" data-action="expand" data-collection-id="${collection.id}">View games</button>
-            <button class="profile-collection-action profile-collection-action--danger" type="button" data-action="delete" data-collection-id="${collection.id}">Delete</button>
-          </div>
-        `
-        : `
-          <div class="profile-collection-actions">
-            <button class="profile-collection-action" type="button" data-action="expand" data-collection-id="${collection.id}">View games</button>
-          </div>
-        `;
+  container.innerHTML = `<ul class="profile-collection-manage-list">${titleIds
+    .map((titleId) => {
+      const game = index.get(titleId);
+      const name = game?.name ?? titleId;
       return `
-        <article class="profile-collection-card" data-collection-id="${collection.id}">
-          <div class="profile-collection-head">
-            <h3 class="profile-collection-name">${escapeHtml(collection.name)}</h3>
-            <div class="profile-collection-meta">
-              <span class="profile-collection-badge ${collection.is_public ? "is-public" : "is-private"}">${visibility}</span>
-              <span>${collection.item_count} game${collection.item_count === 1 ? "" : "s"}</span>
-            </div>
-          </div>
-          ${actions}
-          <div class="profile-collection-games hidden" id="profile-collection-games-${collection.id}"></div>
-        </article>
+        <li class="profile-collection-manage-row">
+          <button type="button" class="profile-collection-manage-open" data-action="open-game" data-collection-id="${collectionId}" data-title-id="${escapeHtml(titleId)}">
+            ${escapeHtml(name)}
+          </button>
+          <button type="button" class="profile-collection-manage-remove" data-action="remove-game" data-collection-id="${collectionId}" data-title-id="${escapeHtml(titleId)}" aria-label="Remove ${escapeHtml(name)}">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
+        </li>
       `;
     })
-    .join("");
+    .join("")}</ul>`;
 
-  grid.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((button) => {
-    button.addEventListener("click", () => {
+  container.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
       void handleProfileCollectionAction(button);
     });
   });
 }
 
+async function openCollectionSettings(collectionId: string): Promise<void> {
+  const collection = profileCollections.find((row) => row.id === collectionId);
+  if (!collection) return;
+
+  editingCollectionId = collectionId;
+  fillCollectionEditForm(collection);
+  await renderCollectionManageGames(collectionId);
+  document.getElementById("profileCollectionEditMod")?.classList.add("show");
+}
+
+async function submitCollectionSettings(): Promise<void> {
+  const collectionId = editingCollectionId;
+  const collection = collectionId ? profileCollections.find((row) => row.id === collectionId) : undefined;
+  if (!collection || !activeUser || !collectionId) return;
+
+  const nameInput = document.getElementById("profile-collection-edit-name") as HTMLInputElement | null;
+  const descriptionInput = document.getElementById(
+    "profile-collection-edit-description"
+  ) as HTMLTextAreaElement | null;
+  const publicInput = document.getElementById("profile-collection-edit-public") as HTMLInputElement | null;
+  const saveBtn = document.getElementById("profile-collection-edit-save") as HTMLButtonElement | null;
+
+  const name = sanitizeCollectionName(nameInput?.value ?? "");
+  if (!name) {
+    setCollectionSettingsStatus("Enter a collection name.", true);
+    nameInput?.focus();
+    return;
+  }
+
+  if (saveBtn) saveBtn.disabled = true;
+  try {
+    await updateCollection(collectionId, {
+      name,
+      description: descriptionInput?.value ?? null,
+      is_public: publicInput?.checked ?? false
+    });
+    await refreshProfileCollections();
+    const updated = profileCollections.find((row) => row.id === collectionId);
+    if (updated) fillCollectionEditForm(updated);
+    await renderCollectionManageGames(collectionId);
+    setCollectionSettingsStatus("Collection updated.");
+  } catch (error) {
+    setCollectionSettingsStatus(error instanceof Error ? error.message : "Could not update collection.", true);
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+async function removeGameFromCollection(collectionId: string, titleId: string): Promise<void> {
+  const index = await getTitleIndex();
+  const game = index.get(titleId);
+  const label = game?.name ?? "this game";
+  if (!window.confirm(`Remove "${label}" from this collection?`)) return;
+
+  try {
+    await removeTitleFromCollection(collectionId, titleId);
+    await refreshProfileCollections();
+    if (editingCollectionId === collectionId) {
+      await openCollectionSettings(collectionId);
+    }
+  } catch (error) {
+    setCollectionSettingsStatus(error instanceof Error ? error.message : "Could not remove game.", true);
+  }
+}
+
+async function renderProfileCollectionCards(
+  isOwner: boolean,
+  previews: Map<string, string[]>
+): Promise<void> {
+  const grid = document.getElementById("profile-collections-grid");
+  if (!grid) return;
+
+  if (!profileCollections.length) {
+    grid.innerHTML = `<p class="profile-collections-empty">${isOwner ? "Save games to a collection from any game page." : "No public collections yet."}</p>`;
+    return;
+  }
+
+  const titleIndex = await getTitleIndex();
+  const countLabel = profileCollections.length === 1 ? "1 collection" : `${profileCollections.length} collections`;
+  const countEl = document.getElementById("profile-collections-count");
+  if (countEl) countEl.textContent = countLabel;
+
+  grid.innerHTML = profileCollections
+    .map((collection) => {
+      const visibility = collection.is_public ? "Public" : "Private";
+      const previewIds = previews.get(collection.id) ?? [];
+      const gameLabel = `${collection.item_count} game${collection.item_count === 1 ? "" : "s"}`;
+      const mainAction = collection.is_public ? "open" : "none";
+      const editBtn = isOwner
+        ? `<button type="button" class="profile-collection-edit-btn" data-action="edit" data-collection-id="${collection.id}" aria-label="Edit ${escapeHtml(collection.name)}">
+            <i class="fa-solid fa-pen" aria-hidden="true"></i><span>Edit</span>
+          </button>`
+        : "";
+
+      return `
+        <article class="profile-collection-card${isOwner ? " profile-collection-card--owner" : ""}" data-collection-id="${collection.id}">
+          <div class="profile-collection-card-wrap">
+            <button
+              type="button"
+              class="profile-collection-card-main${collection.is_public ? "" : " profile-collection-card-main--private"}"
+              data-action="${mainAction}"
+              data-collection-id="${collection.id}"
+              aria-label="${collection.is_public ? `Open ${escapeHtml(collection.name)}` : escapeHtml(collection.name)}"
+            >
+              ${profileCollectionPreviewMarkup(previewIds, titleIndex)}
+              <div class="collections-discover-body">
+                <h3 class="collections-discover-name">${escapeHtml(collection.name)}</h3>
+                <p class="collections-discover-description">${escapeHtml(collectionDescriptionExcerpt(collection.description))}</p>
+                <div class="collections-discover-meta">
+                  <span class="profile-collection-badge ${collection.is_public ? "is-public" : "is-private"}">${visibility}</span>
+                  <span class="collections-discover-count">${gameLabel}</span>
+                </div>
+              </div>
+              ${collection.is_public ? `<span class="collections-discover-open-hint">View collection <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>` : ""}
+            </button>
+            ${editBtn}
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  grid.querySelectorAll<HTMLImageElement>("[data-cover-id]").forEach((img) => {
+    const titleId = img.dataset.coverId;
+    const game = titleId ? titleIndex.get(titleId) : undefined;
+    if (game) bindCroppedCover(img, coverUrl(game));
+  });
+
+  grid.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void handleProfileCollectionAction(button);
+    });
+  });
+
+  if (editingCollectionId && profileCollections.some((row) => row.id === editingCollectionId)) {
+    await openCollectionSettings(editingCollectionId);
+  } else {
+    editingCollectionId = null;
+  }
+}
+
 async function handleProfileCollectionAction(button: HTMLButtonElement): Promise<void> {
   const action = button.dataset.action;
   const collectionId = button.dataset.collectionId;
+  const titleId = button.dataset.titleId;
   if (!action || !collectionId) return;
 
-  if (action === "expand") {
-    const panel = document.getElementById(`profile-collection-games-${collectionId}`);
-    if (!panel) return;
-    const hidden = panel.classList.contains("hidden");
-    if (hidden) {
-      panel.classList.remove("hidden");
-      button.textContent = "Hide games";
-      await renderCollectionGames(panel, collectionId);
-    } else {
-      panel.classList.add("hidden");
-      button.textContent = "View games";
-    }
+  if (action === "open") {
+    window.dispatchEvent(new CustomEvent("xbx-open-collection", { detail: { collectionId } }));
+    return;
+  }
+
+  if (action === "none") {
+    return;
+  }
+
+  if (action === "edit") {
+    await openCollectionSettings(collectionId);
+    return;
+  }
+
+  if (action === "save-settings") {
+    await submitCollectionSettings();
+    return;
+  }
+
+  if (action === "remove-game") {
+    if (!titleId || !profileViewOwner) return;
+    await removeGameFromCollection(collectionId, titleId);
+    return;
+  }
+
+  if (action === "open-game") {
+    if (!titleId) return;
+    closeCollectionEditModal();
+    window.dispatchEvent(new CustomEvent("xbx-open-game", { detail: { titleId } }));
     return;
   }
 
   if (!profileViewOwner || !activeUser) return;
-
-  if (action === "toggle-public") {
-    const collection = profileCollections.find((row) => row.id === collectionId);
-    if (!collection) return;
-    button.disabled = true;
-    try {
-      await updateCollection(collectionId, { is_public: !collection.is_public });
-      await refreshProfileCollections();
-    } catch (error) {
-      console.warn(error);
-    } finally {
-      button.disabled = false;
-    }
-    return;
-  }
 
   if (action === "delete") {
     const collection = profileCollections.find((row) => row.id === collectionId);
@@ -390,6 +554,7 @@ async function handleProfileCollectionAction(button: HTMLButtonElement): Promise
     if (!window.confirm(`Delete "${collection.name}"? This cannot be undone.`)) return;
     button.disabled = true;
     try {
+      closeCollectionEditModal();
       await deleteCollection(collectionId);
       await refreshProfileCollections();
     } catch (error) {
@@ -407,45 +572,10 @@ async function refreshProfileCollections(): Promise<void> {
       ? await loadMyCollections(activeUser)
       : []
     : await loadPublicCollections(viewedProfile.id);
-  renderProfileCollectionCards(profileViewOwner);
-}
-
-async function submitProfileCollectionCreate(): Promise<void> {
-  if (!activeUser) {
-    openAuthModal("Sign in to create collections.");
-    return;
-  }
-
-  const nameInput = document.getElementById("profile-collection-name") as HTMLInputElement | null;
-  const publicInput = document.getElementById("profile-collection-public") as HTMLInputElement | null;
-  const status = document.getElementById("profile-collection-status");
-  const name = nameInput?.value.trim() ?? "";
-  if (!name) {
-    if (status) {
-      status.textContent = "Enter a collection name.";
-      status.classList.remove("hidden");
-    }
-    return;
-  }
-
-  try {
-    await createCollection(activeUser, {
-      name: sanitizeCollectionName(name),
-      is_public: publicInput?.checked ?? false
-    });
-    if (nameInput) nameInput.value = "";
-    if (publicInput) publicInput.checked = false;
-    if (status) {
-      status.textContent = "Collection created.";
-      status.classList.remove("hidden");
-    }
-    await refreshProfileCollections();
-  } catch (error) {
-    if (status) {
-      status.textContent = error instanceof Error ? error.message : "Could not create collection.";
-      status.classList.remove("hidden");
-    }
-  }
+  const previews = profileCollections.length
+    ? await loadCollectionPreviewIds(profileCollections.map((row) => row.id))
+    : new Map();
+  await renderProfileCollectionCards(profileViewOwner, previews);
 }
 
 async function copyProfileLink(): Promise<void> {
@@ -484,7 +614,9 @@ export function syncHeaderAccountPlacement(): void {
   const fallback = document.getElementById("header-account-fallback");
   if (!btn) return;
   const slot =
-    document.body.classList.contains("game-view") || document.body.classList.contains("profile-view")
+    document.body.classList.contains("game-view") ||
+    document.body.classList.contains("profile-view") ||
+    document.body.classList.contains("collection-view")
       ? fallback
       : browse;
   if (!slot) return;
@@ -562,6 +694,9 @@ function renderAccountMenu(): void {
           <button type="button" class="account-menu-action" id="open-app-settings">
             <i class="fa-solid fa-sliders" aria-hidden="true"></i><span>Preferences</span>
           </button>
+          <a class="account-menu-action account-menu-action--link" href="${DISCORD_INVITE_URL}" target="_blank" rel="noopener noreferrer">
+            <i class="fa-brands fa-discord" aria-hidden="true"></i><span>Join Discord</span>
+          </a>
         </div>
       </div>
     </div>
@@ -605,7 +740,7 @@ export function openProfilePage(push = true): void {
   void refreshProfileCollections();
 }
 
-async function openPublicProfileByGamertag(gamertag: string, push = true): Promise<void> {
+export async function openPublicProfileByGamertag(gamertag: string, push = true): Promise<void> {
   if (gamertag.trim().toLowerCase() === "me") {
     openProfilePage(push);
     return;
@@ -619,7 +754,7 @@ async function openPublicProfileByGamertag(gamertag: string, push = true): Promi
       showProfilePageShell(push, gamertag);
       showProfileNotFound(true);
       profileCollections = [];
-      renderProfileCollectionCards(false);
+      await renderProfileCollectionCards(false, new Map());
       return;
     }
 
@@ -674,8 +809,10 @@ export function closeProfilePage(push = true): void {
   document.body.classList.remove("profile-view");
   syncHeaderAccountPlacement();
   document.getElementById("profilePage")?.classList.add("hidden");
+  closeCollectionEditModal();
   viewedProfile = null;
   profileCollections = [];
+  editingCollectionId = null;
   showProfileNotFound(false);
   if (push) {
     window.history.pushState(null, "", homeRouteUrl());
@@ -836,6 +973,11 @@ export function bindAuthUi(): void {
   document.getElementById("authMod")?.addEventListener("click", (event) => {
     if (event.target === event.currentTarget) closeAuthModal();
   });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (document.getElementById("authMod")?.classList.contains("show")) closeAuthModal();
+    else if (document.getElementById("profileCollectionEditMod")?.classList.contains("show")) closeCollectionEditModal();
+  });
   document.getElementById("auth-submit")?.addEventListener("click", () => {
     void submitAuthForm();
   });
@@ -854,12 +996,14 @@ export function bindAuthUi(): void {
   document.getElementById("accountSettingsMod")?.addEventListener("click", (event) => {
     if (event.target === event.currentTarget) closeAccountSettings();
   });
-  document.getElementById("header-back-browse")?.addEventListener("click", () => closeProfilePage());
+  document.getElementById("close-profile-page")?.addEventListener("click", () => closeProfilePage());
   document.getElementById("brand-home")?.addEventListener("click", () => {
     if (document.body.classList.contains("profile-view")) {
       closeProfilePage();
     } else if (document.body.classList.contains("game-view")) {
       window.dispatchEvent(new CustomEvent("xbx-close-game", { detail: { push: true } }));
+    } else if (document.body.classList.contains("collection-view")) {
+      window.dispatchEvent(new CustomEvent("xbx-close-collection", { detail: { push: true } }));
     } else {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -871,6 +1015,8 @@ export function bindAuthUi(): void {
       closeProfilePage();
     } else if (document.body.classList.contains("game-view")) {
       window.dispatchEvent(new CustomEvent("xbx-close-game", { detail: { push: true } }));
+    } else if (document.body.classList.contains("collection-view")) {
+      window.dispatchEvent(new CustomEvent("xbx-close-collection", { detail: { push: true } }));
     } else {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -879,8 +1025,20 @@ export function bindAuthUi(): void {
   document.getElementById("profile-copy-link")?.addEventListener("click", () => {
     void copyProfileLink();
   });
-  document.getElementById("profile-collection-create-btn")?.addEventListener("click", () => {
-    void submitProfileCollectionCreate();
+  document.getElementById("close-profile-collection-edit")?.addEventListener("click", () => closeCollectionEditModal());
+  document.getElementById("profileCollectionEditMod")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeCollectionEditModal();
+  });
+  document.getElementById("profile-collection-edit-save")?.addEventListener("click", () => {
+    void submitCollectionSettings();
+  });
+  document.getElementById("profile-collection-edit-delete")?.addEventListener("click", () => {
+    if (!editingCollectionId) return;
+    const button = document.getElementById("profile-collection-edit-delete") as HTMLButtonElement | null;
+    if (!button) return;
+    button.dataset.action = "delete";
+    button.dataset.collectionId = editingCollectionId;
+    void handleProfileCollectionAction(button);
   });
   window.addEventListener("xbx-collections-changed", () => {
     if (document.body.classList.contains("profile-view") && viewedProfile) {
@@ -907,7 +1065,7 @@ export function bindAuthUi(): void {
 export function authModalMarkup(): string {
   return `
     <div class="overlay overlay--fit" id="authMod">
-      <div class="game-modal game-modal--ambient">
+      <div class="game-modal game-modal--ambient game-modal--compact">
         <div class="game-modal-bg" aria-hidden="true">
           <img class="game-modal-bg-img" alt="" />
           <div class="game-modal-bg-shade"></div>
@@ -916,106 +1074,95 @@ export function authModalMarkup(): string {
           <button class="game-back-link" id="close-auth" type="button" aria-label="Close sign in">
             <i class="fa-solid fa-chevron-left" aria-hidden="true"></i><span>Back</span>
           </button>
-          <div class="game-modal-body game-modal-body--narrow">
+          <div class="game-modal-body">
           <header class="game-modal-header">
-            <div class="game-modal-eyebrow">xbx.place account</div>
+            <div class="game-modal-eyebrow">Account</div>
             <h2 class="game-modal-title" id="auth-title">Sign In</h2>
             <p class="game-modal-sub" id="auth-subtitle">Sign in to your xbx.place account.</p>
           </header>
           <section class="game-modal-section">
-            <p id="auth-body" class="game-modal-lead">
-              Sign in or create a free account to save your profile, gamerpic, and game collections.
-            </p>
-            <div class="game-modal-panel game-modal-panel--stack">
-              <div class="auth-pivots">
-                <button type="button" class="auth-pivot active" data-auth-mode="sign-in">Sign In</button>
-                <button type="button" class="auth-pivot" data-auth-mode="sign-up">Create Account</button>
-              </div>
-              <form id="auth-form" class="auth-form" autocomplete="on">
-                <div class="game-modal-field">
-                  <label class="game-meta-label" for="auth-email">Email</label>
-                  <input id="auth-email" class="inp auth-inp" type="email" name="email" autocomplete="email" required />
-                </div>
-                <div class="game-modal-field">
-                  <label class="game-meta-label" for="auth-password">Password</label>
-                  <input id="auth-password" class="inp auth-inp" type="password" name="password" autocomplete="current-password" minlength="6" required />
-                </div>
-                <div id="auth-error" class="auth-error hidden" role="alert"></div>
-                <ul class="auth-perks" aria-label="Account benefits">
-                  <li><i class="fa-solid fa-id-badge"></i> Gamertag, gamerpic &amp; profile banner</li>
-                  <li><i class="fa-solid fa-bookmark"></i> Public and private game collections</li>
-                  <li><i class="fa-solid fa-cloud"></i> Syncs across devices</li>
-                </ul>
-              </form>
+            <p id="auth-body" class="game-modal-lead hidden" aria-live="polite"></p>
+            <div class="auth-pivots" role="tablist" aria-label="Sign in or create account">
+              <button type="button" class="auth-pivot active" data-auth-mode="sign-in" role="tab" aria-selected="true">Sign In</button>
+              <button type="button" class="auth-pivot" data-auth-mode="sign-up" role="tab" aria-selected="false">Create Account</button>
             </div>
+            <form id="auth-form" class="auth-form auth-form--modal" autocomplete="on">
+              <div class="game-modal-field">
+                <label class="game-meta-label" for="auth-email">Email</label>
+                <input id="auth-email" class="inp auth-inp" type="email" name="email" autocomplete="email" required />
+              </div>
+              <div class="game-modal-field">
+                <label class="game-meta-label" for="auth-password">Password</label>
+                <input id="auth-password" class="inp auth-inp" type="password" name="password" autocomplete="current-password" minlength="6" required />
+              </div>
+              <div id="auth-error" class="auth-error hidden" role="alert"></div>
+            </form>
+            <ul class="auth-perks" aria-label="Account benefits">
+              <li><i class="fa-solid fa-id-badge" aria-hidden="true"></i> Gamertag, gamerpic &amp; profile banner</li>
+              <li><i class="fa-solid fa-bookmark" aria-hidden="true"></i> Public and private game collections</li>
+              <li><i class="fa-solid fa-cloud" aria-hidden="true"></i> Syncs across devices — always free</li>
+            </ul>
           </section>
           <div class="game-modal-footer">
-            <button class="btn auth-submit" id="auth-submit" type="submit" form="auth-form">Sign In</button>
+            <button class="btn game-modal-footer-primary auth-submit" id="auth-submit" type="submit" form="auth-form">Sign In</button>
           </div>
           </div>
         </div>
       </div>
     </div>
-    <section class="profile-hub hidden" id="profilePage" aria-label="User profile">
-      <div class="profile-hub-banner profile-hub-banner--fallback" id="profile-banner-preview">
-        <div class="profile-hub-banner-shade"></div>
+    <section class="profile-page hidden" id="profilePage" aria-label="User profile">
+      <div class="profile-page-bg profile-page-bg--fallback" id="profile-banner-preview" aria-hidden="true">
+        <div class="profile-page-bg-shade"></div>
       </div>
-      <div class="profile-hub-shell">
+      <div class="game-page-shell">
+        <button class="game-back-link" id="close-profile-page" type="button">
+          <i class="fa-solid fa-chevron-left" aria-hidden="true"></i><span>Back to Browse</span>
+        </button>
         <div id="profile-not-found" class="profile-not-found hidden">
           <h2>Profile not found</h2>
           <p>This gamertag does not match any xbx.place profile.</p>
         </div>
-        <div id="profile-view-content">
-          <div class="profile-identity-card">
-            <img class="profile-identity-avatar" data-profile-avatar src="${fallbackGamerpic("new-player")}" alt="" />
-            <div class="profile-identity-copy">
-              <div class="profile-identity-kicker" id="profile-view-handle">@player</div>
-              <h2 id="profile-view-name">Player</h2>
-              <p id="profile-view-bio" class="profile-identity-bio">Add a bio from profile settings.</p>
+        <div id="profile-view-content" class="profile-page-content">
+          <header class="profile-page-head">
+            <img class="profile-page-avatar" data-profile-avatar src="${fallbackGamerpic("new-player")}" alt="" />
+            <div class="profile-page-identity">
+              <div class="profile-page-eyebrow" id="profile-view-handle">@player</div>
+              <h1 class="profile-page-title" id="profile-view-name">Player</h1>
+              <p class="profile-page-bio" id="profile-view-bio">Add a bio from profile settings.</p>
+              <div class="profile-page-meta">
+                <span id="profile-view-member-tile">Recently joined</span>
+              </div>
             </div>
-            <div class="profile-identity-actions">
-              <button class="hub-tile" id="profile-edit" type="button">
-                <i class="fa-solid fa-pen"></i>
-                <span>Edit Profile</span>
+            <div class="profile-page-actions">
+              <button class="btn btn-ghost" id="profile-edit" type="button">
+                <i class="fa-solid fa-pen" aria-hidden="true"></i><span>Edit Profile</span>
               </button>
-              <button class="hub-tile" id="profile-copy-link" type="button">
-                <i class="fa-solid fa-link"></i>
-                <span>Copy Profile Link</span>
+              <button class="btn btn-ghost" id="profile-copy-link" type="button">
+                <i class="fa-solid fa-link" aria-hidden="true"></i><span>Copy Link</span>
               </button>
             </div>
-          </div>
+          </header>
           <p id="profile-copy-status" class="profile-copy-status hidden" role="status"></p>
-        </div>
-        <div class="profile-hub-section" id="profile-account-section">
-          <div class="hub-section-title">Account</div>
-          <div class="profile-info-tiles">
-            <div class="profile-info-tile">
-              <div class="profile-info-tile-label">Email</div>
-              <div class="profile-info-tile-value" id="profile-view-email-tile">—</div>
+          <section class="profile-page-section hidden" id="profile-account-section">
+            <h2 class="game-section-title">Account</h2>
+            <div class="game-modal-panel game-modal-panel--stack profile-account-panel">
+              <div class="profile-account-row">
+                <span class="profile-account-label">Email</span>
+                <span class="profile-account-value" id="profile-view-email-tile">—</span>
+              </div>
+              <div class="profile-account-row">
+                <span class="profile-account-label">Downloads</span>
+                <span class="profile-account-value">Unlimited while signed in</span>
+              </div>
             </div>
-            <div class="profile-info-tile">
-              <div class="profile-info-tile-label">Downloads</div>
-              <div class="profile-info-tile-value">Unlimited while signed in</div>
+          </section>
+          <section class="profile-page-section" id="profile-collections-section">
+            <div class="profile-page-section-head">
+              <h2 class="game-section-title">Collections</h2>
+              <span class="browse-count" id="profile-collections-count"></span>
             </div>
-            <div class="profile-info-tile">
-              <div class="profile-info-tile-label">Member Since</div>
-              <div class="profile-info-tile-value" id="profile-view-member-tile">Recently joined</div>
-            </div>
-          </div>
-        </div>
-        <div class="profile-hub-section" id="profile-collections-section">
-          <div class="hub-section-title">Collections</div>
-          <div id="profile-collection-create" class="profile-collection-create">
-            <div class="profile-collection-create-form">
-              <input id="profile-collection-name" class="inp" type="text" maxlength="64" placeholder="New collection name" />
-              ${checkboxHtml({ id: "profile-collection-public", label: "Public on profile", className: "ui-check--inline" })}
-              <button class="btn" id="profile-collection-create-btn" type="button">
-                <i class="fa-solid fa-folder-plus"></i><span>New collection</span>
-              </button>
-            </div>
-            <div id="profile-collection-status" class="profile-collection-status hidden" role="status"></div>
-          </div>
-          <div id="profile-collections-grid" class="profile-collections-grid"></div>
+            <div id="profile-collections-grid" class="profile-collections-grid"></div>
+          </section>
         </div>
       </div>
     </section>
@@ -1087,6 +1234,56 @@ export function authModalMarkup(): string {
               </form>
             </main>
           </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="overlay overlay--fit" id="profileCollectionEditMod">
+      <div class="game-modal game-modal--ambient">
+        <div class="game-modal-bg" aria-hidden="true">
+          <div class="game-modal-bg-shade"></div>
+        </div>
+        <div class="game-modal-page-shell">
+          <button class="game-back-link" id="close-profile-collection-edit" type="button" aria-label="Close collection settings">
+            <i class="fa-solid fa-chevron-left" aria-hidden="true"></i><span>Back</span>
+          </button>
+          <div class="game-modal-body game-modal-body--narrow profile-collection-edit-shell">
+            <header class="game-modal-header">
+              <div class="game-modal-eyebrow">Collection</div>
+              <h2 class="game-modal-title" id="profile-collection-edit-title">Edit collection</h2>
+              <p class="game-modal-sub">Update details, visibility, and games in this list.</p>
+            </header>
+            <section class="game-modal-section profile-collection-edit-section">
+              <div class="game-modal-panel game-modal-panel--stack">
+                <div class="metro-field metro-field--row">
+                  <label for="profile-collection-edit-name">Name</label>
+                  <input id="profile-collection-edit-name" class="inp" type="text" maxlength="64" />
+                </div>
+                <div class="metro-field metro-field--row profile-bio-field">
+                  <label for="profile-collection-edit-description">Description</label>
+                  <textarea id="profile-collection-edit-description" class="inp text-area profile-collection-description" maxlength="${COLLECTION_DESCRIPTION_MAX_LEN}" rows="3"></textarea>
+                </div>
+                <div class="metro-field metro-field--row">
+                  <span class="profile-account-label">Visibility</span>
+                  <div class="profile-collection-create-visibility">
+                    ${checkboxHtml({ id: "profile-collection-edit-public", label: "Public on Collections", className: "ui-check--inline" })}
+                  </div>
+                </div>
+                <div class="profile-collection-settings-actions">
+                  <button type="button" class="btn" id="profile-collection-edit-save">
+                    <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i><span>Save changes</span>
+                  </button>
+                  <button type="button" class="profile-collection-action profile-collection-action--danger" id="profile-collection-edit-delete">
+                    <i class="fa-solid fa-trash" aria-hidden="true"></i><span>Delete collection</span>
+                  </button>
+                </div>
+                <div id="profile-collection-edit-status" class="profile-collection-settings-status hidden" role="status"></div>
+              </div>
+              <h3 class="game-section-title profile-collection-manage-title">Games in this list</h3>
+              <div class="game-modal-panel profile-collection-manage-panel">
+                <div id="profile-collection-manage-games" class="profile-collection-manage-games"></div>
+              </div>
+            </section>
           </div>
         </div>
       </div>

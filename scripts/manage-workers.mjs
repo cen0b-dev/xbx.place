@@ -3,6 +3,7 @@
  * xbx.place Cloudflare Worker Manager
  *
  * Usage:  node scripts/manage-workers.mjs   (or: npm run workers)
+ *         node scripts/manage-workers.mjs deploy-all   (or: npm run workers:deploy-all)
  *
  * Manages download-proxy workers across one or more Cloudflare accounts.
  * Accounts are stored in scripts/.cf-accounts.json (gitignored).
@@ -87,6 +88,39 @@ function loadEnvLocal() {
     out[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
   }
   return out;
+}
+
+function resolveSupabaseProjectRef(env = loadEnvLocal()) {
+  for (const rel of [".supabase/project-ref", "supabase/.temp/project-ref"]) {
+    const path = join(ROOT, rel);
+    if (existsSync(path)) {
+      const ref = readFileSync(path, "utf8").trim();
+      if (ref) return ref;
+    }
+  }
+  const url = (env.VITE_SUPABASE_URL ?? env.SUPABASE_URL ?? "").trim();
+  const match = url.match(/https:\/\/([a-z0-9-]+)\.supabase\.co/i);
+  return match?.[1] ?? "";
+}
+
+function getSupabaseAccessToken(env = loadEnvLocal()) {
+  const token = (env.SUPABASE_ACCESS_TOKEN ?? process.env.SUPABASE_ACCESS_TOKEN ?? "").trim();
+  return token.startsWith("sbp_") ? token : null;
+}
+
+async function setSupabaseSecretsViaApi(projectRef, accessToken, pairs) {
+  const res = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/secrets`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(pairs.map(([name, value]) => ({ name, value }))),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Management API ${res.status}${detail ? `: ${detail}` : ""}`);
+  }
 }
 
 function setEnvLocalKey(key, value) {
@@ -235,21 +269,50 @@ async function syncWorkerPoolTable(config) {
 
 /** Push MANAGED_ACCOUNTS + DASHBOARD_PASSWORD to Supabase Edge Function secrets. */
 async function autoSyncSupabase(config) {
-  try { execFileSync("npx", ["supabase", "--version"], { cwd: ROOT, stdio: "pipe" }); } catch { return; }
+  const env = loadEnvLocal();
+  const projectRef = resolveSupabaseProjectRef(env);
+  if (!projectRef) {
+    warn("No Supabase project ref — edge function secrets not updated.");
+    return;
+  }
 
   const managed = config.accounts.map(({ label, accountId, apiToken, workerName, workerUrl }) => ({
     label, accountId, apiToken, workerName, workerUrl,
   }));
 
-  const secretArgs = [`MANAGED_ACCOUNTS=${JSON.stringify(managed)}`];
-  if (config.dashboardPassword) secretArgs.push(`DASHBOARD_PASSWORD=${config.dashboardPassword}`);
+  const pairs = [["MANAGED_ACCOUNTS", JSON.stringify(managed)]];
+  if (config.dashboardPassword) pairs.push(["DASHBOARD_PASSWORD", config.dashboardPassword]);
 
+  const accessToken = getSupabaseAccessToken(env);
+  if (accessToken) {
+    try {
+      await setSupabaseSecretsViaApi(projectRef, accessToken, pairs);
+      const extra = config.dashboardPassword ? ", DASHBOARD_PASSWORD" : "";
+      ok(`Supabase secrets updated (MANAGED_ACCOUNTS${extra})`);
+      return;
+    } catch (err) {
+      warn(`Supabase secrets API sync failed: ${err.message}`);
+    }
+  }
+
+  try { execFileSync("npx", ["supabase", "--version"], { cwd: ROOT, stdio: "pipe" }); } catch { return; }
+
+  const secretArgs = pairs.map(([name, value]) => `${name}=${value}`);
   try {
-    execFileSync("npx", ["supabase", "secrets", "set", ...secretArgs], { cwd: ROOT, stdio: "pipe" });
-    const extra = config.dashboardPassword ? "DASHBOARD_PASSWORD" : "";
-    ok(`Supabase secrets updated (MANAGED_ACCOUNTS${extra ? `, ${extra}` : ""})`);
+    execFileSync(
+      "npx",
+      ["supabase", "secrets", "set", ...secretArgs, "--project-ref", projectRef],
+      { cwd: ROOT, stdio: "pipe" }
+    );
+    const extra = config.dashboardPassword ? ", DASHBOARD_PASSWORD" : "";
+    ok(`Supabase secrets updated (MANAGED_ACCOUNTS${extra})`);
   } catch (err) {
-    warn(`Supabase secrets sync failed: ${err.stderr?.toString().trim() ?? err.message}`);
+    const msg = err.stderr?.toString().trim() ?? err.message;
+    warn(`Supabase secrets sync failed: ${msg}`);
+    info("Edge function secrets (worker-stats dashboard) were not updated.");
+    info("Fix: add SUPABASE_ACCESS_TOKEN=sbp_... to .env.local");
+    info("     (Supabase Dashboard → Account → Access Tokens → Generate new token)");
+    info("Or run: npx supabase login   (then re-run deploy / sync)");
   }
 }
 
@@ -514,9 +577,16 @@ async function main() {
     return;
   }
 
+  if (cli === "sync-secrets") {
+    head("Syncing Supabase worker pool + edge function secrets...");
+    await autoSyncAll(config);
+    return;
+  }
+
   const MENU = [
     "Add new Cloudflare account",
     "Re-deploy worker to account",
+    "Re-deploy all workers to Cloudflare",
     "Update dashboard (Edge Function + password)",
     "Re-sync pool to Supabase",
     "Remove account",
@@ -529,9 +599,10 @@ async function main() {
     const idx = await choose("What would you like to do?", MENU);
     if      (idx === 0) await actionAddAccount(config);
     else if (idx === 1) await actionDeploy(config);
-    else if (idx === 2) await actionDeployEdgeFunction(config);
-    else if (idx === 3) await actionSyncGitHub(config);
-    else if (idx === 4) await actionRemove(config);
+    else if (idx === 2) await actionDeployAll(config);
+    else if (idx === 3) await actionDeployEdgeFunction(config);
+    else if (idx === 4) await actionSyncGitHub(config);
+    else if (idx === 5) await actionRemove(config);
     else break;
   }
 

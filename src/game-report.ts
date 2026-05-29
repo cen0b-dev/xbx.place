@@ -178,7 +178,7 @@ function toggleGameOptionsMenu(): void {
 export function gameReportMarkup(): string {
   return `
     <div class="overlay overlay--fit" id="reportMod">
-      <div class="game-modal">
+      <div class="game-modal game-modal--compact">
         <div class="game-modal-bg" aria-hidden="true">
           <img class="game-modal-bg-img" alt="" />
           <div class="game-modal-bg-shade"></div>
@@ -214,7 +214,7 @@ export function gameReportMarkup(): string {
               </div>
             </section>
             <div class="game-modal-footer">
-              <button class="btn" id="report-submit" type="submit" form="report-form">
+              <button class="btn game-modal-footer-primary" id="report-submit" type="submit" form="report-form">
                 <i class="fa-solid fa-paper-plane" aria-hidden="true"></i><span>Send report</span>
               </button>
             </div>

@@ -235,6 +235,7 @@ async function resolveIdentity(request, env, reqUrl) {
   if (token) {
     const userId = await verifySupabaseUser(env, token);
     if (userId) return { ok: true, identityType: "user", identityId: userId };
+    return { ok: false, status: 401, error: "invalid_token" };
   }
 
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {

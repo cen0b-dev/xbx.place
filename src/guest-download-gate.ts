@@ -1,3 +1,4 @@
+import { discordCtaButtonMarkup } from "./discord";
 import { openAuthModal } from "./auth-ui";
 
 export type GuestGateReason = "active" | "signup";
@@ -52,7 +53,7 @@ export function guestDownloadGateMarkup(): string {
           <button class="game-back-link" id="close-guest-gate" type="button" aria-label="Close">
             <i class="fa-solid fa-xmark" aria-hidden="true"></i><span>Close</span>
           </button>
-          <div class="game-modal-body game-modal-body--narrow guest-gate-body">
+          <div class="game-modal-body guest-gate-body">
             <header class="game-modal-header">
               <div class="game-modal-eyebrow" id="guest-gate-eyebrow">Free account</div>
               <h2 class="game-modal-title" id="guest-gate-title">Unlock unlimited downloads</h2>
@@ -70,6 +71,7 @@ export function guestDownloadGateMarkup(): string {
             <div class="game-modal-footer guest-gate-footer">
               <button class="btn guest-gate-primary" id="guest-gate-signup" type="button">Create free account</button>
               <button class="btn btn-ghost guest-gate-secondary" id="guest-gate-signin" type="button">Sign in</button>
+              <div class="guest-gate-discord">${discordCtaButtonMarkup("Join our Discord", "btn btn-discord btn-discord--ghost")}</div>
             </div>
           </div>
         </div>

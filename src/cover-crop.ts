@@ -1,13 +1,24 @@
-/** Reference width for Xbox 360 box art; top strip is cropped at this scale. */
 const COVER_REF_WIDTH = 280;
-/** Matches --cover-crop-top in src/styles.css / design/tokens.css */
-const COVER_CROP_TOP = 37;
+/** Matches --cover-crop-top in src/styles.css / design/tokens.css (x360db header strip). */
+const COVER_CROP_TOP = 48;
 
 const croppedCache = new Map<string, string>();
 
-function cropTopForWidth(naturalWidth: number): number {
-  if (!naturalWidth) return COVER_CROP_TOP;
-  return Math.round(COVER_CROP_TOP * (naturalWidth / COVER_REF_WIDTH));
+function cropTopPx(naturalWidth: number, naturalHeight: number): number {
+  if (!naturalWidth || !naturalHeight) {
+    return Math.round(COVER_CROP_TOP * (219 / COVER_REF_WIDTH));
+  }
+  return Math.min(
+    Math.round(COVER_CROP_TOP * (naturalWidth / COVER_REF_WIDTH)),
+    naturalHeight - 1
+  );
+}
+
+function cropShiftForDisplay(img: HTMLImageElement): number {
+  const { naturalWidth, naturalHeight, clientWidth } = img;
+  if (!naturalWidth || !naturalHeight || !clientWidth) return 0;
+  const cropTop = cropTopPx(naturalWidth, naturalHeight);
+  return cropTop * (clientWidth / naturalWidth);
 }
 
 function rasterizeCroppedCover(image: HTMLImageElement): Promise<string | null> {
@@ -15,7 +26,7 @@ function rasterizeCroppedCover(image: HTMLImageElement): Promise<string | null> 
   const height = image.naturalHeight;
   if (!width || !height) return Promise.resolve(null);
 
-  const cropTop = Math.min(cropTopForWidth(width), height - 1);
+  const cropTop = cropTopPx(width, height);
   const outHeight = height - cropTop;
   if (outHeight <= 0) return Promise.resolve(null);
 
@@ -46,8 +57,19 @@ function rasterizeCroppedCover(image: HTMLImageElement): Promise<string | null> 
   });
 }
 
-function applyDisplayCrop(img: HTMLImageElement, cropped: boolean): void {
-  img.classList.toggle("is-raster-cropped", cropped);
+function applyDisplayCrop(img: HTMLImageElement, rasterized: boolean): void {
+  img.classList.toggle("is-raster-cropped", rasterized);
+  if (rasterized) {
+    img.style.transform = "";
+    return;
+  }
+  const sync = (): void => {
+    if (img.classList.contains("is-raster-cropped")) return;
+    const shift = cropShiftForDisplay(img);
+    img.style.transform = shift > 0 ? `translateY(-${shift}px)` : "";
+  };
+  if (img.complete && img.naturalHeight) sync();
+  else img.addEventListener("load", sync, { once: true });
 }
 
 async function resolveCroppedSrc(rawSrc: string): Promise<{ src: string; rasterized: boolean }> {
@@ -87,7 +109,7 @@ export function bindCroppedCover(
     fallbackSrc?: string;
   } = {}
 ): void {
-  img.crossOrigin = "anonymous";
+  img.removeAttribute("crossorigin");
   applyDisplayCrop(img, false);
 
   void resolveCroppedSrc(rawSrc)

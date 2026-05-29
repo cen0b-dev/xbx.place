@@ -7,11 +7,37 @@ import {
   bindAuthUi,
   closeProfilePage,
   openAuthModal,
+  openPublicProfileByGamertag,
   syncHeaderAccountPlacement,
   syncProfileRouteFromUrl
 } from "./auth-ui";
-import { bindCollectionUi, closeCollectionModal, setActiveGameForCollections, syncGameCollectionButton } from "./collections-ui";
+import {
+  bindCollectionUi,
+  closeCollectionModal,
+  setActiveGameForCollections,
+  syncGameCollectionButton
+} from "./collections-ui";
+import {
+  bindCollectionDetailUi,
+  closeCollectionDetail,
+  openCollectionDetail,
+  setCollectionDetailTitleIndex,
+  syncCollectionRouteFromUrl
+} from "./collection-detail-ui";
+import {
+  renderCollectionsDiscoverGrid,
+  setCollectionsDiscoverError,
+  setCollectionsDiscoverLoading
+} from "./collections-browse";
+import { loadDiscoverPublicCollections, type DiscoverCollection } from "./collections";
 import { bindCommentsUi, setActiveGameForComments } from "./comments-ui";
+import {
+  bindDownloadCountdownUi,
+  cancelDownloadCountdown,
+  downloadCountdownPanelMarkup,
+  runDownloadCountdown
+} from "./download-countdown";
+import { discordFooterLinkMarkup, discordHeroLinkMarkup, discordPromoStripMarkup } from "./discord";
 import {
   bindGuestDownloadGateUi,
   guestDownloadGateMarkup,
@@ -63,7 +89,7 @@ import {
 import { observeReveal, observeRevealChildren, observeRevealFirstRow } from "./reveal";
 import type { DownloadEntry, TitleEntry } from "./types";
 
-type Category = "Game" | "DLC";
+type Category = "Game" | "DLC" | "Collections";
 
 type Settings = {
   th: string;
@@ -89,6 +115,9 @@ let category: Category = "Game";
 let activeGenre: string | null = null;
 let activeAddonType: AddonTypeSlug = "all";
 let activeGame: TitleEntry | null = null;
+let discoverCollections: DiscoverCollection[] = [];
+let discoverCollectionsLoaded = false;
+let discoverCollectionsLoading = false;
 const ROWS_PER_BATCH = 5;
 const settings: Settings = {
   th: window.localStorage.getItem("x_th") ?? "#107C10",
@@ -143,6 +172,9 @@ async function handleDownload(filename: string, button?: HTMLButtonElement): Pro
     button.classList.add("busy");
   }
   try {
+    const proceed = await runDownloadCountdown(filename);
+    if (!proceed) return;
+
     const result = await requestDownloadWithPool(filename);
     if (result.status === "auth_required") {
       openGuestDownloadGate(result.reason, result.activeFilename);
@@ -359,13 +391,11 @@ function renderShell(): void {
         </div>
         <div class="header-account account-menu-host" id="header-account-fallback"></div>
       </div>
-      <button class="profile-back-link" id="header-back-browse" type="button">
-        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>Browse Games</span>
-      </button>
       <div class="nav-row browse-only">
         <div class="pivots">
           <div class="pivot active" id="p-Game">GAMES</div>
           <div class="pivot" id="p-DLC">ADDONS & DLC</div>
+          <div class="pivot" id="p-Collections">COLLECTIONS</div>
         </div>
         <div class="nav-search-group">
           <div class="nav-search">
@@ -408,6 +438,7 @@ function renderShell(): void {
                 <a class="btn site-hero-cta" id="siteHeroBrowse" href="#catalogSection">
                   <i class="fa-solid fa-compact-disc" aria-hidden="true"></i><span>Browse catalog</span>
                 </a>
+                ${discordHeroLinkMarkup()}
               </div>
             </div>
             <div class="site-hero-visual" aria-hidden="true">
@@ -415,7 +446,7 @@ function renderShell(): void {
             </div>
           </div>
         </section>
-        <div class="browse-discovery">
+        <div class="browse-discovery catalog-only">
         <section class="browse-section browse-section--featured browse-section--rail games-only" id="featuredSection">
           <div class="browse-section-head">
             <div class="browse-section-title-block">
@@ -445,7 +476,7 @@ function renderShell(): void {
           </div>
         </section>
         </div>
-        <section class="browse-section browse-section--catalog" id="catalogSection">
+        <section class="browse-section browse-section--catalog catalog-only" id="catalogSection">
           <div class="browse-section-head">
             <div class="browse-section-title-group">
               <h2 class="game-section-title" id="lTitle">All Games</h2>
@@ -499,10 +530,21 @@ function renderShell(): void {
           <div id="gridSentinel" class="browse-grid-sentinel" aria-hidden="true"></div>
           <div id="pager" class="browse-pager"></div>
         </section>
+        <section class="browse-section browse-section--collections collections-only hidden" id="collectionsSection">
+          <div class="browse-section-head">
+            <div class="browse-section-title-block">
+              <h2 class="game-section-title">Public Collections</h2>
+              <p class="browse-section-sub">Tap a list to browse games, read notes, and join the conversation</p>
+            </div>
+            <span id="collectionsCnt" class="browse-count"></span>
+          </div>
+          <div id="collectionsDiscoverStatus" class="collections-discover-status hidden" role="status"></div>
+          <div id="collectionsDiscoverGrid" class="collections-discover-grid"></div>
+        </section>
       </div>
     </div>
-    <div class="overlay" id="setMod">
-      <div class="game-modal game-modal--ambient">
+    <div class="overlay overlay--fit" id="setMod">
+      <div class="game-modal game-modal--ambient game-modal--compact">
         <div class="game-modal-bg" aria-hidden="true">
           <img class="game-modal-bg-img" alt="" />
           <div class="game-modal-bg-shade"></div>
@@ -511,7 +553,7 @@ function renderShell(): void {
           <button class="game-back-link" id="close-settings" type="button" aria-label="Close preferences">
             <i class="fa-solid fa-chevron-left" aria-hidden="true"></i><span>Back</span>
           </button>
-          <div class="game-modal-body game-modal-body--narrow">
+          <div class="game-modal-body">
           <header class="game-modal-header">
             <div class="game-modal-eyebrow">Site</div>
             <h2 class="game-modal-title">Preferences</h2>
@@ -544,6 +586,43 @@ function renderShell(): void {
           <div class="game-modal-footer">
             <button class="btn game-modal-footer-primary" id="save-settings" type="button"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i><span>Save preferences</span></button>
           </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="collectionPage" class="collection-page hidden" aria-hidden="true">
+      <div class="collection-page-bg" aria-hidden="true">
+        <div class="collection-page-bg-shade"></div>
+      </div>
+      <div class="game-page-shell">
+        <button class="game-back-link" id="close-collection-detail" type="button">
+          <i class="fa-solid fa-chevron-left" aria-hidden="true"></i><span>Back to Browse</span>
+        </button>
+        <div class="collection-page-content" id="collection-detail-content">
+          <header class="collection-page-head">
+            <div class="collection-page-eyebrow">Collection</div>
+            <h1 class="collection-page-title" id="collection-detail-title">Collection</h1>
+            <p class="collection-page-description hidden" id="collection-detail-description"></p>
+            <div class="collection-detail-meta">
+              <button type="button" class="collection-detail-owner" id="collection-detail-owner">
+                <img class="collection-detail-owner-pic" id="collection-detail-owner-pic" alt="" />
+                <span>Player</span>
+              </button>
+              <span class="collection-detail-count" id="collection-detail-count"></span>
+            </div>
+            <div class="collection-detail-toolbar">
+              <button type="button" class="btn btn-ghost collection-detail-share-btn" id="collection-detail-share">
+                <i class="fa-solid fa-link" aria-hidden="true"></i><span>Copy link</span>
+              </button>
+              <p id="collection-detail-share-status" class="collection-detail-share-status hidden" role="status"></p>
+            </div>
+          </header>
+          <div id="collection-detail-scroll" class="collection-page-body">
+            <div id="collection-detail-games" class="browse-grid"></div>
+            <h2 class="game-section-title" id="collection-detail-comments-title">Comments</h2>
+            <div class="collection-detail-comments-wrap">
+              <div id="collection-detail-comments-body" class="collection-detail-comments-body"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -648,17 +727,21 @@ function renderShell(): void {
             <i class="fa-solid fa-chevron-left" aria-hidden="true"></i><span>Back</span>
           </button>
           <div class="game-modal-body game-modal-body--narrow">
+          ${downloadCountdownPanelMarkup()}
+          <div class="download-modal-content">
           <header class="game-modal-header">
             <div class="game-modal-eyebrow">Download</div>
             <h2 class="game-modal-title">Choose a file</h2>
             <p id="download-mod-subtitle" class="game-modal-sub"></p>
           </header>
           <section class="game-modal-section">
+            ${discordPromoStripMarkup()}
             <h3 class="game-section-title">Available files</h3>
-            <div class="game-modal-panel">
+            <div class="game-modal-panel game-modal-panel--download">
               <div id="dl-l" class="game-modal-list"></div>
             </div>
           </section>
+          </div>
           </div>
         </div>
       </div>
@@ -674,22 +757,26 @@ function renderShell(): void {
             <i class="fa-solid fa-chevron-left" aria-hidden="true"></i><span>Back</span>
           </button>
           <div class="game-modal-body game-modal-body--narrow">
+          ${downloadCountdownPanelMarkup()}
+          <div class="download-modal-content">
           <header class="game-modal-header">
             <div class="game-modal-eyebrow" id="package-mod-eyebrow">Packages</div>
             <h2 class="game-modal-title" id="package-mod-title">Choose a file</h2>
             <p id="package-mod-subtitle" class="game-modal-sub"></p>
           </header>
           <section class="game-modal-section">
+            ${discordPromoStripMarkup()}
             <h3 class="game-section-title" id="package-mod-section-title">Available packages</h3>
-            <div class="game-modal-panel">
+            <div class="game-modal-panel game-modal-panel--download">
               <div id="package-l" class="game-modal-list"></div>
             </div>
           </section>
           </div>
+          </div>
         </div>
       </div>
     </div>
-    <div class="overlay" id="collectionMod">
+    <div class="overlay overlay--fit" id="collectionMod">
       <div class="game-modal">
         <div class="game-modal-bg" aria-hidden="true">
           <img class="game-modal-bg-img" alt="" />
@@ -699,7 +786,7 @@ function renderShell(): void {
           <button class="game-back-link" id="close-collection-mod" type="button" aria-label="Close collections">
             <i class="fa-solid fa-chevron-left" aria-hidden="true"></i><span id="collection-mod-back-label">Back</span>
           </button>
-          <div class="game-modal-body game-modal-body--wide collection-mod-shell">
+          <div class="game-modal-body game-modal-body--narrow collection-mod-shell">
           <header class="game-modal-header">
             <div class="game-modal-eyebrow">Collection</div>
             <h2 id="collection-mod-title" class="game-modal-title">Add to collection</h2>
@@ -713,11 +800,11 @@ function renderShell(): void {
                 <div id="collection-mod-list" class="collection-mod-list hidden"></div>
               </div>
             </section>
-            <div class="collection-mod-actions">
+            <div class="game-modal-footer collection-mod-footer">
               <button class="btn btn-ghost collection-mod-new-btn" id="collection-mod-new-btn" type="button">
                 <i class="fa-solid fa-folder-plus" aria-hidden="true"></i><span>Create New Collection</span>
               </button>
-              <button class="btn collection-mod-save-btn" id="collection-mod-save-btn" type="button" disabled>
+              <button class="btn game-modal-footer-primary collection-mod-save-btn" id="collection-mod-save-btn" type="button" disabled>
                 <i class="fa-solid fa-check" aria-hidden="true"></i><span>Add to collection</span>
               </button>
             </div>
@@ -772,7 +859,7 @@ function renderShell(): void {
         <div>The premier archive for X360 content.</div>
       </div>
       <div class="footer-links">
-        <a href="${aboutHref}">About</a><a href="${dmcaHref}">DMCA</a>
+        <a href="${aboutHref}">About</a>${discordFooterLinkMarkup()}<a href="${dmcaHref}">DMCA</a>
       </div>
     </footer>
   `;
@@ -794,17 +881,27 @@ function closeGamePage(push = true): void {
   page?.classList.remove("game-page--loading", "game-page--ready");
   page?.setAttribute("aria-hidden", "true");
   if (push) {
-    const next = activeGenre ? `${window.location.pathname}?genre=${encodeURIComponent(activeGenre)}` : window.location.pathname;
-    window.history.pushState(null, "", next);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("title");
+    if (url.searchParams.has("collection")) {
+      window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    } else {
+      const next = activeGenre
+        ? `${window.location.pathname}?genre=${encodeURIComponent(activeGenre)}`
+        : window.location.pathname;
+      window.history.pushState(null, "", next);
+    }
   }
   syncDefaultHead();
 }
 
 function closeDownloadModal(): void {
+  cancelDownloadCountdown();
   document.getElementById("downloadMod")?.classList.remove("show");
 }
 
 function closePackageModal(): void {
+  cancelDownloadCountdown();
   document.getElementById("packageMod")?.classList.remove("show");
 }
 
@@ -1259,7 +1356,9 @@ function openGamePage(game: TitleEntry, push = true): void {
   });
 
   if (push) {
-    window.history.pushState({ id: game.title_id }, "", `?title=${game.title_id}`);
+    const url = new URL(window.location.href);
+    url.searchParams.set("title", game.title_id);
+    window.history.pushState({ id: game.title_id }, "", `${url.pathname}${url.search}${url.hash}`);
   }
   syncGameHead(game);
 }
@@ -1301,7 +1400,9 @@ function syncGameHead(game: TitleEntry): void {
   const description =
     game.description?.trim() ||
     `View ${game.name} on ${SITE_NAME} with metadata, rating, artwork, and downloadable archives where available.`;
-  const pathAndQuery = `${window.location.pathname}?title=${encodeURIComponent(game.title_id)}`;
+  const url = new URL(window.location.href);
+  url.searchParams.set("title", game.title_id);
+  const pathAndQuery = `${url.pathname}${url.search}${url.hash}`;
   const pageUrl = new URL(pathAndQuery, window.location.origin).toString();
   document.title = title;
   upsertMeta("description", description);
@@ -1375,7 +1476,9 @@ function updateDlcPivotChrome(): void {
 
 function updateBrowseModeChrome(): void {
   const isDlc = category === "DLC";
+  const isCollections = category === "Collections";
   document.body.classList.toggle("browse-mode-dlc", isDlc);
+  document.body.classList.toggle("browse-mode-collections", isCollections);
 
   const eyebrow = document.getElementById("siteHeroEyebrow");
   const title = document.getElementById("siteHeroTitle");
@@ -1385,19 +1488,29 @@ function updateBrowseModeChrome(): void {
   const featuredTitle = document.getElementById("featuredTitle");
   const featuredSubtitle = document.getElementById("featuredSubtitle");
 
-  if (eyebrow) eyebrow.textContent = isDlc ? "Add-ons & Updates" : "Xbox 360 Archive";
+  if (eyebrow) {
+    eyebrow.textContent = isCollections ? "Community" : isDlc ? "Add-ons & Updates" : "Xbox 360 Archive";
+  }
   if (title) {
-    title.innerHTML = isDlc
-      ? 'Download <span>DLC</span> and update packages'
-      : 'Games, <span>DLC</span>, and metadata in one catalog';
+    title.innerHTML = isCollections
+      ? 'Curated <span>collections</span> from players'
+      : isDlc
+        ? 'Download <span>DLC</span> and update packages'
+        : 'Games, <span>DLC</span>, and metadata in one catalog';
   }
   if (lead) {
-    lead.textContent = isDlc
-      ? "Browse titles with downloadable add-on packs and title updates — open a tile to view and download files."
-      : "Search thousands of titles with cover art, ratings, and downloadable archives — built for preservation and easy rediscovery.";
+    lead.textContent = isCollections
+      ? "Browse public game lists shared by xbx.place users — favorites, backlogs, themed sets, and more."
+      : isDlc
+        ? "Browse titles with downloadable add-on packs and title updates — open a tile to view and download files."
+        : "Search thousands of titles with cover art, ratings, and downloadable archives — built for preservation and easy rediscovery.";
   }
-  if (gamesStat) gamesStat.classList.toggle("site-hero-stat--muted", isDlc);
+  if (gamesStat) gamesStat.classList.toggle("site-hero-stat--muted", isDlc || isCollections);
   if (addonsStat) addonsStat.classList.toggle("site-hero-stat--emphasis", isDlc);
+  if (featuredTitle) featuredTitle.textContent = isDlc ? "Has Add-ons" : "Top Rated";
+  if (featuredSubtitle) {
+    featuredSubtitle.textContent = isDlc ? "Titles with downloadable packages" : "Ranked by community score";
+  }
   const filterTitle = document.getElementById("browseFilterDrawerTitle");
   const sortLabel = document.getElementById("browseSortLabel");
   const regionLabel = document.getElementById("browseRegionLabel");
@@ -1618,6 +1731,11 @@ function clearSearchQuery(): void {
 function updateSearchPlaceholder(): void {
   const input = document.getElementById("q") as HTMLInputElement | null;
   if (!input) return;
+  if (category === "Collections") {
+    input.placeholder = "Search collections or gamertags…";
+    input.setAttribute("aria-label", "Search public collections or gamertags");
+    return;
+  }
   const gameCount = db.filter((g) => isGameEntry(g) && !/demo|beta|trial/i.test(g.name)).length;
   const addonCount = db.filter((g) => isAddonEntry(g) && !/demo|beta|trial/i.test(g.name)).length;
   if (category === "DLC") {
@@ -1631,6 +1749,7 @@ function updateSearchPlaceholder(): void {
 }
 
 function featuredCandidates(): TitleEntry[] {
+  if (category === "Collections") return [];
   const regionMatch = (g: TitleEntry) =>
     settings.r === "all" || (g.regions ?? []).includes(settings.r) || (g.regions ?? []).includes("World");
 
@@ -1655,6 +1774,10 @@ function featuredCandidates(): TitleEntry[] {
 function renderHeroRows(): void {
   const hGrid = document.getElementById("hGrid");
   if (!hGrid) return;
+  if (category === "Collections") {
+    hGrid.innerHTML = "";
+    return;
+  }
 
   const candidates = featuredCandidates();
   const top = candidates.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 3);
@@ -1812,6 +1935,13 @@ function updateBrowseSectionChrome(): void {
   document.querySelectorAll<HTMLElement>(".dlc-only").forEach((node) => {
     node.classList.toggle("hidden", category !== "DLC");
   });
+  document.querySelectorAll<HTMLElement>(".catalog-only").forEach((node) => {
+    node.classList.toggle("hidden", category === "Collections");
+  });
+  document.querySelectorAll<HTMLElement>(".collections-only").forEach((node) => {
+    node.classList.toggle("hidden", category !== "Collections");
+  });
+  document.getElementById("browseFilterToggle")?.classList.toggle("hidden", category === "Collections");
 }
 
 function updateGenreRailOverflow(): void {
@@ -1987,15 +2117,81 @@ function bindGenreEvents(): void {
   });
 }
 
+function titleIndexMap(): Map<string, TitleEntry> {
+  return new Map(db.map((row) => [row.title_id, row]));
+}
+
+function filteredDiscoverCollections(): DiscoverCollection[] {
+  const query = (document.getElementById("q") as HTMLInputElement | null)?.value.trim().toLowerCase() ?? "";
+  if (!query) return discoverCollections;
+  return discoverCollections.filter((collection) => {
+    const haystack = `${collection.name} ${collection.owner_gamertag} ${collection.description ?? ""}`.toLowerCase();
+    return haystack.includes(query);
+  });
+}
+
+function renderDiscoverCollectionsView(): void {
+  const index = titleIndexMap();
+  setCollectionDetailTitleIndex(index);
+  renderCollectionsDiscoverGrid(filteredDiscoverCollections(), index, {
+    onOpenCollection: (collectionId) => {
+      void openCollectionDetail(collectionId, true);
+    },
+    onOpenProfile: (gamertag) => {
+      void openPublicProfileByGamertag(gamertag, true);
+    }
+  });
+}
+
+async function refreshDiscoverCollections(force = false): Promise<void> {
+  if (discoverCollectionsLoading) return;
+  if (discoverCollectionsLoaded && !force) {
+    renderDiscoverCollectionsView();
+    return;
+  }
+
+  discoverCollectionsLoading = true;
+  setCollectionsDiscoverError(null);
+  setCollectionsDiscoverLoading(true);
+  try {
+    discoverCollections = await loadDiscoverPublicCollections();
+    discoverCollectionsLoaded = true;
+    renderDiscoverCollectionsView();
+  } catch (error) {
+    discoverCollections = [];
+    discoverCollectionsLoaded = true;
+    setCollectionsDiscoverError(
+      error instanceof Error ? error.message : "Could not load public collections."
+    );
+    renderDiscoverCollectionsView();
+  } finally {
+    discoverCollectionsLoading = false;
+    setCollectionsDiscoverLoading(false);
+  }
+}
+
+function applyCollectionsFilters(): void {
+  updateSearchPlaceholder();
+  syncSearchClearButton();
+  renderDiscoverCollectionsView();
+  updateBrowseSectionChrome();
+}
+
 function applyFilters(): void {
+  updateSearchPlaceholder();
+  syncSearchClearButton();
+  if (category === "Collections") {
+    applyCollectionsFilters();
+    return;
+  }
+
   const query = (document.getElementById("q") as HTMLInputElement | null)?.value.toLowerCase() ?? "";
+  closePackageModal();
+
   const sort = getDropdownValue("sort") || defaultSortForCategory();
   const cnt = document.getElementById("cnt");
   const title = document.getElementById("lTitle");
   if (title) title.textContent = catalogSectionTitle();
-  updateSearchPlaceholder();
-  syncSearchClearButton();
-  closePackageModal();
 
   filtered = db.filter((g) => {
     if (/demo|beta|trial/i.test(g.name)) return false;
@@ -2042,6 +2238,9 @@ function switchCategory(next: Category): void {
   if (document.body.classList.contains("game-view")) {
     closeGamePage();
   }
+  if (document.body.classList.contains("collection-view")) {
+    closeCollectionDetail(false);
+  }
   if (next === "DLC" && activeGenre) {
     activeGenre = null;
     syncGenreToUrl(null, false);
@@ -2050,9 +2249,16 @@ function switchCategory(next: Category): void {
     activeAddonType = "all";
     syncAddonTypeToUrl("all", false);
   }
+  if (category === "Collections" && next !== "Collections") {
+    closeCollectionDetail(false);
+  }
+  if (next !== "Collections" && category === "Collections") {
+    closeFilterDrawer();
+  }
   category = next;
   document.getElementById("p-Game")?.classList.toggle("active", next === "Game");
   document.getElementById("p-DLC")?.classList.toggle("active", next === "DLC");
+  document.getElementById("p-Collections")?.classList.toggle("active", next === "Collections");
   updateBrowseModeChrome();
   syncSortDropdownForCategory();
   syncCatalogGridLayout();
@@ -2060,7 +2266,13 @@ function switchCategory(next: Category): void {
   renderHeroRows();
   renderGenreRail();
   renderAddonTypeRail();
-  applyFilters();
+  updateSearchPlaceholder();
+  if (next === "Collections") {
+    void refreshDiscoverCollections(true);
+    applyCollectionsFilters();
+  } else {
+    applyFilters();
+  }
   updateFilterDrawerChrome();
 }
 
@@ -2127,8 +2339,22 @@ function bindStaticEvents(): void {
     if (event.key === "ArrowLeft") document.getElementById("media-lightbox-prev")?.click();
     if (event.key === "ArrowRight") document.getElementById("media-lightbox-next")?.click();
   });
+  window.addEventListener("xbx-open-collection", (event) => {
+    const collectionId = (event as CustomEvent<{ collectionId?: string }>).detail?.collectionId;
+    if (collectionId) void openCollectionDetail(collectionId, true);
+  });
+  window.addEventListener("xbx-open-collections-tab", () => {
+    if (category !== "Collections") switchCategory("Collections");
+  });
   document.getElementById("p-Game")?.addEventListener("click", () => switchCategory("Game"));
   document.getElementById("p-DLC")?.addEventListener("click", () => switchCategory("DLC"));
+  document.getElementById("p-Collections")?.addEventListener("click", () => switchCategory("Collections"));
+  window.addEventListener("xbx-collections-changed", () => {
+    discoverCollectionsLoaded = false;
+    if (category === "Collections") {
+      void refreshDiscoverCollections(true);
+    }
+  });
   bindSiteHeroEvents();
   bindGenreEvents();
   bindFilterDrawer();
@@ -2148,6 +2374,10 @@ function bindStaticEvents(): void {
   document.getElementById("setMod")?.addEventListener("click", (e) => {
     if (e.target === e.currentTarget) closeSettings();
   });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (document.getElementById("setMod")?.classList.contains("show")) closeSettings();
+  });
   document.getElementById("downloadMod")?.addEventListener("click", (e) => {
     if (e.target === e.currentTarget) closeDownloadModal();
   });
@@ -2157,6 +2387,10 @@ function bindStaticEvents(): void {
   window.addEventListener("xbx-close-game", (event) => {
     const push = (event as CustomEvent<{ push?: boolean }>).detail?.push ?? false;
     closeGamePage(push);
+  });
+  window.addEventListener("xbx-close-collection", (event) => {
+    const push = (event as CustomEvent<{ push?: boolean }>).detail?.push ?? true;
+    closeCollectionDetail(push);
   });
   window.addEventListener("xbx-open-game", (event) => {
     const titleId = (event as CustomEvent<{ titleId?: string }>).detail?.titleId;
@@ -2189,9 +2423,11 @@ async function bootstrap(): Promise<void> {
   bindStaticEvents();
   bindAuthUi();
   bindCollectionUi();
+  bindCollectionDetailUi();
   bindCommentsUi();
   bindCommentReportUi();
   bindGuestDownloadGateUi();
+  bindDownloadCountdownUi();
   bindGameReportUi(() => activeGame);
   const [, rows] = await Promise.all([initAuth(), loadTitles(), initProxyPool()]);
   db = rows;
@@ -2209,22 +2445,39 @@ async function bootstrap(): Promise<void> {
 
   const initialId = new URLSearchParams(window.location.search).get("title");
   const initialProfile = new URLSearchParams(window.location.search).get("profile");
-  if (initialProfile) {
+  const initialCollection = new URLSearchParams(window.location.search).get("collection");
+  if (initialCollection) {
+    switchCategory("Collections");
+    await syncCollectionRouteFromUrl();
+  } else if (initialProfile) {
     await syncProfileRouteFromUrl();
-  } else if (initialId) {
+  }
+  if (initialId) {
     const found = db.find((g) => g.title_id === initialId);
     if (found) openGamePage(found, false);
   }
   window.addEventListener("popstate", () => {
-    if (new URLSearchParams(window.location.search).get("profile")) return;
-    const id = new URLSearchParams(window.location.search).get("title");
-    if (id) {
-      const found = db.find((g) => g.title_id === id);
+    const params = new URLSearchParams(window.location.search);
+    const collectionId = params.get("collection");
+    const titleId = params.get("title");
+
+    if (params.get("profile")) return;
+
+    if (titleId) {
+      const found = db.find((g) => g.title_id === titleId);
       if (found) openGamePage(found, false);
       else closeGamePage(false);
+      if (collectionId) void openCollectionDetail(collectionId, false);
+      else closeCollectionDetail(false);
       return;
     }
+
     closeGamePage(false);
+    if (collectionId) {
+      void syncCollectionRouteFromUrl();
+      return;
+    }
+    closeCollectionDetail(false);
     activeGenre = readGenreFromUrl();
     activeAddonType = readAddonTypeFromUrl();
     renderGenreRail();

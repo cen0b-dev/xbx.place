@@ -84,8 +84,18 @@ export async function signOut(): Promise<void> {
 export async function getAccessToken(): Promise<string | null> {
   const supabase = getSupabase();
   if (!supabase) return null;
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+
+  let { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+
+  const expiresAt = session.expires_at ?? 0;
+  const now = Math.floor(Date.now() / 1000);
+  if (expiresAt > 0 && expiresAt - now < 60) {
+    const { data } = await supabase.auth.refreshSession();
+    session = data.session ?? session;
+  }
+
+  return session.access_token ?? null;
 }
 
 export function authAvailable(): boolean {

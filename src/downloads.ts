@@ -1,4 +1,4 @@
-import { getAccessToken } from "./auth";
+import { getAccessToken, isAuthenticated } from "./auth";
 import type { GuestGateReason } from "./guest-download-gate";
 import { hasProxy, notifyEvent, pickNextProxy, pickProxy, reportProxyRateLimit } from "./proxy-pool";
 import { getTurnstileToken, isTurnstileConfigured } from "./turnstile";
@@ -39,6 +39,12 @@ function mapGuestAuthError(
   if (status === 401 && body.error === "auth_required") {
     return { status: "auth_required", reason: "signup" };
   }
+  if (status === 401 && body.error === "invalid_token") {
+    return {
+      status: "blocked",
+      message: "Your session expired or could not be verified. Sign in again and retry the download.",
+    };
+  }
   if (status === 403 && (body.error === "guest_active" || body.error === "guest_limit")) {
     const activeFilename = typeof body.active_filename === "string" ? body.active_filename : undefined;
     return { status: "auth_required", reason: "active", activeFilename };
@@ -48,15 +54,26 @@ function mapGuestAuthError(
 
 async function requestDownload(resolveUrl: string, filename: string): Promise<DownloadGateResult> {
   const token = await getAccessToken();
-  const guestId = getGuestId();
+  if (!token && isAuthenticated()) {
+    return {
+      status: "blocked",
+      message: "Your session expired. Sign in again and retry the download.",
+    };
+  }
+
   const url = new URL(resolveUrl, window.location.origin);
-  url.searchParams.set("guest", guestId);
 
   const headers: Record<string, string> = {
-    "X-Guest-Id": guestId,
     Accept: "application/json",
   };
-  if (token) headers.Authorization = `Bearer ${token}`;
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  } else {
+    const guestId = getGuestId();
+    url.searchParams.set("guest", guestId);
+    headers["X-Guest-Id"] = guestId;
+  }
 
   if (isTurnstileConfigured()) {
     try {

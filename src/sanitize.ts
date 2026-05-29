@@ -32,6 +32,13 @@ export function sanitizeCollectionName(value: string): string {
   return collapseWhitespace(stripHtml(value).replace(/[^\w .,'!?&+()-]/g, "")).slice(0, 64);
 }
 
+export function sanitizeCollectionDescription(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const cleaned = collapseWhitespace(stripHtml(value));
+  if (!cleaned) return null;
+  return cleaned.slice(0, 280);
+}
+
 export function sanitizeReportDetails(value: string | null | undefined): string | null {
   if (!value) return null;
   const cleaned = collapseWhitespace(stripHtml(value));

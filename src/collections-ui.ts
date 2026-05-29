@@ -9,6 +9,7 @@ import {
   removeTitleFromCollection,
   type CollectionWithCount
 } from "./collections";
+import { COLLECTION_DESCRIPTION_MAX_LEN } from "./collections";
 import { checkboxHtml } from "./form-controls";
 import type { TitleEntry } from "./types";
 
@@ -76,17 +77,28 @@ function setModalView(view: CollectionModalView): void {
   }
 }
 
-function createFormHtml(containerId: string, nameId: string, publicId: string, submitId: string, submitLabel: string): string {
+function createFormHtml(
+  containerId: string,
+  nameId: string,
+  descriptionId: string,
+  publicId: string,
+  submitId: string,
+  submitLabel: string
+): string {
   return `
     <div class="collection-create-form">
       <div class="metro-field collection-field">
         <label for="${nameId}">Collection name</label>
         <input id="${nameId}" class="inp collection-inp" type="text" maxlength="64" placeholder="Favorites, Backlog, Co-op night..." autocomplete="off" />
       </div>
+      <div class="metro-field collection-field">
+        <label for="${descriptionId}">Description <span class="collection-field-optional">(optional)</span></label>
+        <textarea id="${descriptionId}" class="inp text-area collection-description-inp" maxlength="${COLLECTION_DESCRIPTION_MAX_LEN}" rows="3" placeholder="What's this list about? Shown when your collection is public."></textarea>
+      </div>
       <label class="collection-visibility-row">
         <span class="collection-visibility-row-copy">
-          <span class="collection-visibility-row-label">Public on profile</span>
-          <span class="collection-visibility-row-hint">Others can browse this list on your profile page</span>
+          <span class="collection-visibility-row-label">Public on Collections</span>
+          <span class="collection-visibility-row-hint">Others can browse, comment on, and share this list</span>
         </span>
         ${checkboxHtml({ id: publicId })}
       </label>
@@ -105,13 +117,20 @@ function bindCreateForm(submitId: string, onSubmit: () => void): void {
   });
 }
 
-function renderCreateBlock(containerId: string, nameId: string, publicId: string, submitId: string, submitLabel: string): void {
+function renderCreateBlock(
+  containerId: string,
+  nameId: string,
+  descriptionId: string,
+  publicId: string,
+  submitId: string,
+  submitLabel: string
+): void {
   const container = document.getElementById(containerId);
   if (!container) return;
 
-  container.innerHTML = createFormHtml(containerId, nameId, publicId, submitId, submitLabel);
+  container.innerHTML = createFormHtml(containerId, nameId, descriptionId, publicId, submitId, submitLabel);
   bindCreateForm(submitId, () => {
-    void submitCreateCollection(true, nameId, publicId);
+    void submitCreateCollection(true, nameId, descriptionId, publicId);
   });
 }
 
@@ -127,6 +146,7 @@ function renderEmptyState(): void {
   renderCreateBlock(
     "collection-mod-create-first",
     "collection-mod-empty-name",
+    "collection-mod-empty-description",
     "collection-mod-empty-public",
     "collection-mod-empty-create-btn",
     "Create & add game"
@@ -184,6 +204,7 @@ function renderCollectionList(): void {
   renderCreateBlock(
     "collection-mod-create",
     "collection-mod-name",
+    "collection-mod-description",
     "collection-mod-public",
     "collection-mod-create-btn",
     "Create & add game"
@@ -195,12 +216,14 @@ function renderCollectionList(): void {
 async function submitCreateCollection(
   addGame: boolean,
   nameId = "collection-mod-name",
+  descriptionId = "collection-mod-description",
   publicId = "collection-mod-public"
 ): Promise<void> {
   const user = getCurrentUser();
   if (!user || !activeGame) return;
 
   const nameInput = document.getElementById(nameId) as HTMLInputElement | null;
+  const descriptionInput = document.getElementById(descriptionId) as HTMLTextAreaElement | null;
   const publicInput = document.getElementById(publicId) as HTMLInputElement | null;
   const name = nameInput?.value.trim() ?? "";
   if (!name) {
@@ -213,6 +236,7 @@ async function submitCreateCollection(
   try {
     const collection = await createCollection(user, {
       name,
+      description: descriptionInput?.value ?? null,
       is_public: publicInput?.checked ?? false
     });
     myCollections = [{ ...collection, item_count: 0 }, ...myCollections];
@@ -225,7 +249,6 @@ async function submitCreateCollection(
     }
     syncPendingSelection();
     setCollectionStatus(addGame ? `Added to "${collection.name}".` : `Created "${collection.name}".`);
-    window.dispatchEvent(new CustomEvent("xbx-collections-changed"));
     setModalView("pick");
     renderCollectionList();
   } catch (error) {
@@ -346,12 +369,24 @@ export function bindCollectionUi(): void {
   document.getElementById("collectionMod")?.addEventListener("click", (event) => {
     if (event.target === event.currentTarget) closeCollectionModal();
   });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (!document.getElementById("collectionMod")?.classList.contains("show")) return;
+    if (modalView === "create" && myCollections.length > 0) {
+      setCollectionStatus(null);
+      setModalView("pick");
+      updateSaveButton();
+      return;
+    }
+    closeCollectionModal();
+  });
 
   document.getElementById("collection-mod-new-btn")?.addEventListener("click", () => {
     setCollectionStatus(null);
     renderCreateBlock(
       "collection-mod-create",
       "collection-mod-name",
+      "collection-mod-description",
       "collection-mod-public",
       "collection-mod-create-btn",
       "Create & add game"
