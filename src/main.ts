@@ -15,7 +15,8 @@ import { bindCroppedCover, preloadCroppedCover } from "./cover-crop";
 import { bgUrl, coverUrl, loadTitles, syncGameModalBackground } from "./data";
 import { formatDownloadDisplay } from "./download-label";
 import { startMinervaTorrentDownload } from "./minerva-torrent";
-import { formatDownloadProgress, requestDownload } from "./downloads";
+import { requestDownloadWithPool } from "./downloads";
+import { initProxyPool } from "./proxy-pool";
 import { galleryImageUrl } from "./gallery-image";
 import {
   ADDON_TYPE_FILTERS,
@@ -68,12 +69,6 @@ const DEFAULT_DESCRIPTION =
   "Browse Xbox 360 games, updates, and DLC in one fast catalog with title details, artwork, and downloadable archives.";
 const BASE_URL = import.meta.env.BASE_URL;
 
-/** Cloudflare Worker auth gate (or override via VITE_DOWNLOAD_PROXY_ORIGIN). Resolves URLs; does not proxy ROM bytes. */
-function downloadProxyBase(): string | null {
-  const fromEnv = (import.meta.env.VITE_DOWNLOAD_PROXY_ORIGIN as string | undefined)?.trim();
-  if (!fromEnv) return null;
-  return fromEnv.replace(/\/+$/, "");
-}
 
 const root = document.querySelector<HTMLDivElement>("#app");
 
@@ -134,21 +129,13 @@ function scrollBelowHeader(element: HTMLElement | null): void {
   window.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
 }
 
-function proxiedUrl(download: DownloadEntry): string | null {
-  const base = downloadProxyBase();
-  if (!base) return null;
-  return `${base}/download?key=${encodeURIComponent(download.filename)}`;
-}
-
-async function handleDownload(target: string, filename: string, button?: HTMLButtonElement): Promise<void> {
+async function handleDownload(filename: string, button?: HTMLButtonElement): Promise<void> {
   if (button) {
     button.disabled = true;
     button.classList.add("busy");
   }
   try {
-    const result = await requestDownload(target, filename, (progress) => {
-      showDownloadNotice(formatDownloadProgress(progress), false);
-    });
+    const result = await requestDownloadWithPool(filename);
     if (result.status === "auth_required") {
       openAuthModal("You have already used your one guest download. Sign in or create a free account to download more files.");
       return;
@@ -157,7 +144,7 @@ async function handleDownload(target: string, filename: string, button?: HTMLBut
       showDownloadNotice(result.message, true);
       return;
     }
-    showDownloadNotice(formatDownloadProgress({ loaded: 0, total: 0 }), false);
+    showDownloadNotice("Download started. Open your browser downloads (Chrome: ⌘+Shift+J). Large X360 files can take a while to appear.", false);
   } finally {
     if (button) {
       button.disabled = false;
@@ -831,7 +818,6 @@ function renderDownloadEntries(
   }
 
   for (const dl of items) {
-    const target = proxiedUrl(dl);
     const display = formatDownloadDisplay(dl.label ?? dl.filename);
     const meta = display.meta ? `<div class="dl-meta">${display.meta}</div>` : "";
     const row = document.createElement("div");
@@ -839,13 +825,11 @@ function renderDownloadEntries(
 
     const button = document.createElement("button");
     button.type = "button";
-    button.className = target ? "dl-btn" : "dl-btn dis";
+    button.className = "dl-btn";
     button.innerHTML = `<div><div class="dl-type">${downloadTypeLabel(dl)}</div><b>${display.title}</b>${meta}</div><span><i class="fa-solid fa-download"></i></span>`;
-    if (target) {
-      button.addEventListener("click", (event) => {
-        void handleDownload(target, dl.filename, event.currentTarget as HTMLButtonElement);
-      });
-    }
+    button.addEventListener("click", (event) => {
+      void handleDownload(dl.filename, event.currentTarget as HTMLButtonElement);
+    });
 
     row.append(button);
     if (dl.fastUrl) {
@@ -2143,7 +2127,7 @@ async function bootstrap(): Promise<void> {
   bindStaticEvents();
   bindAuthUi();
   bindCollectionUi();
-  const [, rows] = await Promise.all([initAuth(), loadTitles()]);
+  const [, rows] = await Promise.all([initAuth(), loadTitles(), initProxyPool()]);
   db = rows;
   renderSiteHero();
   updateBrowseModeChrome();

@@ -9,13 +9,8 @@ compatibility_date = "2024-12-01"
 [vars]
 MASTER_INDEX_URL = "https://xbx.place/master_index.json"
 
-# Optional comma-separated allowlist override:
-# ALLOWED_DOWNLOAD_HOSTS = "archive.org,vimm.net,file.romsworlds.com,1fichier.com"
-
-# Supabase guest download limits (set as secrets, never commit service role):
+# Secrets — set per worker account, never commit values:
 #   npx wrangler secret put SUPABASE_URL
 #   npx wrangler secret put SUPABASE_ANON_KEY
 #   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-
-# IA cookie pool (optional, same JSON as .env.local — for build:ia-map / ops, not user-facing):
 #   npx wrangler secret put IA_COOKIE_POOL

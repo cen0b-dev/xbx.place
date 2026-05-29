@@ -1,4 +1,5 @@
 import { getAccessToken, isAuthenticated } from "./auth";
+import { hasProxy, notifyEvent, pickNextProxy, pickProxy, reportProxyRateLimit } from "./proxy-pool";
 
 const GUEST_ID_KEY = "xbx_guest_id";
 const GUEST_USED_KEY = "xbx_guest_dl_used";
@@ -9,30 +10,10 @@ export type DownloadGateResult =
   | { status: "auth_required" }
   | { status: "blocked"; message: string };
 
-export type DownloadProgress = {
-  loaded: number;
-  total: number;
-};
-
-function randomId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  if (typeof crypto === "undefined" || !("getRandomValues" in crypto)) {
-    throw new Error("Secure random id unavailable in this browser.");
-  }
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
-  const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
 export function getGuestId(): string {
   let id = window.localStorage.getItem(GUEST_ID_KEY);
   if (!id || !GUEST_ID_RE.test(id)) {
-    id = randomId();
+    id = crypto.randomUUID();
     window.localStorage.setItem(GUEST_ID_KEY, id);
   }
   return id;
@@ -57,11 +38,7 @@ function triggerNativeDownload(url: string): void {
   anchor.remove();
 }
 
-export async function requestDownload(
-  resolveUrl: string,
-  _filename: string,
-  onProgress?: (progress: DownloadProgress) => void
-): Promise<DownloadGateResult> {
+async function requestDownload(resolveUrl: string): Promise<DownloadGateResult> {
   if (!isAuthenticated() && guestDownloadUsedLocally()) {
     return { status: "auth_required" };
   }
@@ -75,8 +52,6 @@ export async function requestDownload(
     headers.Authorization = `Bearer ${token}`;
     url.searchParams.set("access_token", token);
   }
-
-  onProgress?.({ loaded: 0, total: 0 });
 
   let res: Response;
   try {
@@ -93,37 +68,47 @@ export async function requestDownload(
   }
 
   if (!res.ok) {
-    if (res.status === 401 && body.error === "auth_required") {
-      return { status: "auth_required" };
-    }
-    if (res.status === 403 && body.error === "guest_limit") {
-      return { status: "auth_required" };
-    }
+    if (res.status === 401 && body.error === "auth_required") return { status: "auth_required" };
+    if (res.status === 403 && body.error === "guest_limit") return { status: "auth_required" };
     if (res.status === 401) {
-      return {
-        status: "blocked",
-        message: "Sign in, or allow this site to store a guest id (localStorage), then try again."
-      };
+      return { status: "blocked", message: "Sign in, or allow this site to store a guest id (localStorage), then try again." };
     }
-    return {
-      status: "blocked",
-      message: body.error ?? `Download unavailable (${res.status}).`
-    };
+    // Surface IA-specific failures so the pool can report them distinctly
+    if (res.status === 503) notifyEvent("ia_cookie_empty", new URL(resolveUrl).origin, body.error);
+    if (res.status === 502) notifyEvent("ia_resolve_failed", new URL(resolveUrl).origin, body.error);
+    return { status: "blocked", message: body.error ?? `Download unavailable (${res.status}).` };
   }
 
-  if (!body.url) {
-    return { status: "blocked", message: "No download URL returned." };
-  }
+  if (!body.url) return { status: "blocked", message: "No download URL returned." };
 
   triggerNativeDownload(body.url);
 
-  if (!isAuthenticated()) {
-    markGuestDownloadUsed();
-  }
+  if (!isAuthenticated()) markGuestDownloadUsed();
 
   return { status: "started" };
 }
 
-export function formatDownloadProgress(_progress: DownloadProgress): string {
-  return "Download started. Open your browser downloads (Chrome: ⌘+Shift+J). Large X360 files can take a while to appear.";
+/**
+ * Pick a healthy worker from the pool and request the download, failing over
+ * to the next worker on transient errors.
+ */
+export async function requestDownloadWithPool(filename: string): Promise<DownloadGateResult> {
+  if (!hasProxy()) {
+    return { status: "blocked", message: "No download workers are configured. Please try again later." };
+  }
+
+  let origin = pickProxy();
+  while (origin !== null) {
+    const result = await requestDownload(`${origin}/download?key=${encodeURIComponent(filename)}`);
+
+    if (result.status === "started" || result.status === "auth_required") return result;
+
+    reportProxyRateLimit(origin);
+    const next = pickNextProxy(origin);
+    if (next === null) break;
+    origin = next;
+  }
+
+  notifyEvent("all_workers_down");
+  return { status: "blocked", message: "All download workers are currently unavailable. Please try again later." };
 }

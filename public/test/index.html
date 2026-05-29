@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>vimm test</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #111;
+        color: #ccc;
+      }
+      #log {
+        margin: 0;
+        padding: 12px;
+        height: 100%;
+        overflow: auto;
+        font: 12px/1.45 ui-monospace, monospace;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <pre id="log"></pre>
+    <script>
+      const CFG = {
+        vaultId: "80045",
+        mediaId: "75833",
+        alt: "0",
+        redirectDelayMs: 2500,
+        staggerMs: [1000, 2500, 5000]
+      };
+
+      const logEl = document.getElementById("log");
+
+      function log(msg) {
+        const line = "[" + new Date().toISOString().slice(11, 23) + "] " + msg;
+        logEl.textContent += line + "\n";
+        logEl.scrollTop = logEl.scrollHeight;
+        console.log(line);
+      }
+
+      function sleep(ms) {
+        return new Promise((r) => setTimeout(r, ms));
+      }
+
+      function vaultUrl(id) {
+        return "https://vimm.net/vault/" + encodeURIComponent(id);
+      }
+
+      function dl2Url(mediaId, alt) {
+        const u = new URL("https://dl2.vimm.net/");
+        u.searchParams.set("mediaId", mediaId);
+        u.searchParams.set("alt", alt);
+        return u.toString();
+      }
+
+      function openVimmPopup(vaultId) {
+        return window.open(vaultUrl(vaultId), "xbxVimmTest", "popup,width=720,height=640");
+      }
+
+      function redirectPopup(popup, url) {
+        if (!popup || popup.closed) return { ok: false, reason: "popup closed" };
+        try {
+          popup.location.href = url;
+          return { ok: true };
+        } catch (e) {
+          return { ok: false, reason: e && e.message ? e.message : String(e) };
+        }
+      }
+
+      async function probeDl2(label, url, init) {
+        log("probe " + label + " → " + url);
+        try {
+          const res = await fetch(url, { method: "HEAD", ...init });
+          log("  status " + res.status + " type=" + (res.headers.get("content-type") || "?"));
+          const disp = res.headers.get("content-disposition");
+          if (disp) log("  disposition " + disp);
+          return res.status;
+        } catch (e) {
+          log("  fetch error (often CORS): " + (e && e.message ? e.message : String(e)));
+          return null;
+        }
+      }
+
+      function waitForClick() {
+        log("");
+        log(">>> CLICK PAGE to run popup tests (browser requires user gesture)");
+        return new Promise((resolve) => {
+          const done = () => {
+            document.body.removeEventListener("click", done);
+            document.body.removeEventListener("keydown", onKey);
+            log(">>> click received — running popup tests");
+            resolve();
+          };
+          const onKey = (e) => {
+            if (e.key === "Enter" || e.key === " ") done();
+          };
+          document.body.addEventListener("click", done, { once: true });
+          document.body.addEventListener("keydown", onKey);
+        });
+      }
+
+      async function runPopupTests() {
+        const dl = dl2Url(CFG.mediaId, CFG.alt);
+
+        log("");
+        log("--- test: direct dl2 tab (expect 400 — wrong referer) ---");
+        const direct = window.open(dl, "_blank");
+        log(direct ? "opened tab " + dl : "tab blocked");
+
+        await sleep(800);
+
+        log("");
+        log("--- test: popup vault only ---");
+        const vaultOnly = openVimmPopup(CFG.vaultId);
+        log(vaultOnly ? "vault popup open " + vaultUrl(CFG.vaultId) : "vault popup BLOCKED");
+        await sleep(1500);
+
+        log("");
+        log("--- test: popup vault → redirect dl2 (" + CFG.redirectDelayMs + "ms) ---");
+        const popup = openVimmPopup(CFG.vaultId);
+        if (!popup) {
+          log("FAIL: popup blocked — allow popups for this origin");
+          return;
+        }
+        log("vault popup open, waiting " + CFG.redirectDelayMs + "ms…");
+        await sleep(CFG.redirectDelayMs);
+        const r1 = redirectPopup(popup, dl);
+        log(r1.ok ? "redirect sent — check popup for download or error page" : "redirect FAIL: " + r1.reason);
+
+        await sleep(2000);
+
+        log("");
+        log("--- test: popup vault → staggered redirects ---");
+        const popup2 = openVimmPopup(CFG.vaultId);
+        if (!popup2) {
+          log("FAIL: second popup blocked");
+          return;
+        }
+        for (const ms of CFG.staggerMs) {
+          await sleep(ms);
+          log("stagger @" + ms + "ms");
+          const r = redirectPopup(popup2, dl);
+          log(r.ok ? "  redirect ok" : "  " + r.reason);
+        }
+        log("done — inspect popup window(s)");
+      }
+
+      async function runSuite() {
+        log("vimm download harness");
+        log("page " + location.href);
+        log("cfg vault=" + CFG.vaultId + " mediaId=" + CFG.mediaId + " alt=" + CFG.alt);
+        log("");
+
+        if (location.protocol === "file:") {
+          log("STOP: you opened this as file:// (Finder / double-click).");
+          log("Browsers block popups from file:// even after a click.");
+          log("");
+          log("In the project folder run:  npm run dev");
+          log("Then open:  http://localhost:5173/test/  (restart npm run dev if you saw the main catalog)");
+          return;
+        }
+
+        log("--- probes (fetch HEAD, may fail CORS in browser) ---");
+        const dl = dl2Url(CFG.mediaId, CFG.alt);
+        await probeDl2("dl2 bare", dl, { mode: "cors", credentials: "omit" });
+        await probeDl2("dl2 cors+omit", dl, { mode: "cors" });
+
+        log("");
+        log("note: server-side curl showed 200 only with Referer vimm.net; browser fetch cannot spoof that.");
+
+        log("");
+        log("--- auto popup attempt (no click — usually blocked) ---");
+        const auto = openVimmPopup(CFG.vaultId);
+        log(auto ? "unexpected: popup opened without gesture" : "blocked as expected");
+
+        await waitForClick();
+        await runPopupTests();
+
+        log("");
+        log("=== suite finished ===");
+      }
+
+      runSuite().catch((e) => log("FATAL: " + (e && e.message ? e.message : String(e))));
+    </script>
+  </body>
+</html>

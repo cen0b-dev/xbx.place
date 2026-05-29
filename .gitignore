@@ -11,3 +11,4 @@ dist/
 .env.test.local
 .env.production.local
 tools/legiongamesgod/output/*.json
+scripts/.cf-accounts.json
