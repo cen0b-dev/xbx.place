@@ -84,9 +84,28 @@ Deno.serve(async (req: Request) => {
   }
 
   // -------------------------------------------------------------------------
+  // Flood protection — cap inserts per worker_url + type per minute
+  // -------------------------------------------------------------------------
+  let shouldInsert = true;
+  if (supabaseUrl && serviceRole) {
+    const since = new Date(Date.now() - 60 * 1000).toISOString();
+    const workerFilter = worker_url
+      ? `&worker_url=eq.${encodeURIComponent(worker_url)}`
+      : "&worker_url=is.null";
+    const countRes = await fetch(
+      `${supabaseUrl}/rest/v1/worker_events?type=eq.${encodeURIComponent(type)}${workerFilter}&created_at=gte.${encodeURIComponent(since)}&select=id`,
+      { headers: dbHeaders }
+    ).catch(() => null);
+    const rows = countRes?.ok ? await countRes.json().catch(() => []) : [];
+    if (Array.isArray(rows) && rows.length >= 10) {
+      shouldInsert = false;
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Insert event row (best-effort — don't fail the request if table is missing)
   // -------------------------------------------------------------------------
-  if (supabaseUrl && serviceRole) {
+  if (shouldInsert && supabaseUrl && serviceRole) {
     await fetch(`${supabaseUrl}/rest/v1/worker_events`, {
       method: "POST",
       headers: dbHeaders,

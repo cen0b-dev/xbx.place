@@ -11,6 +11,14 @@ import {
   syncProfileRouteFromUrl
 } from "./auth-ui";
 import { bindCollectionUi, closeCollectionModal, setActiveGameForCollections, syncGameCollectionButton } from "./collections-ui";
+import { bindCommentsUi, setActiveGameForComments } from "./comments-ui";
+import {
+  bindGuestDownloadGateUi,
+  guestDownloadGateMarkup,
+  openGuestDownloadGate
+} from "./guest-download-gate";
+import { bindCommentReportUi, closeCommentReportUi, commentReportMarkup } from "./comment-report";
+import { bindGameReportUi, closeGameReportUi, gameReportMarkup } from "./game-report";
 import { bindCroppedCover, preloadCroppedCover } from "./cover-crop";
 import { bgUrl, coverUrl, loadTitles, syncGameModalBackground } from "./data";
 import { formatDownloadDisplay } from "./download-label";
@@ -137,7 +145,7 @@ async function handleDownload(filename: string, button?: HTMLButtonElement): Pro
   try {
     const result = await requestDownloadWithPool(filename);
     if (result.status === "auth_required") {
-      openAuthModal("You have already used your one guest download. Sign in or create a free account to download more files.");
+      openGuestDownloadGate(result.reason, result.activeFilename);
       return;
     }
     if (result.status === "blocked") {
@@ -361,7 +369,13 @@ function renderShell(): void {
         </div>
         <div class="nav-search-group">
           <div class="nav-search">
-            <input id="q" class="inp" type="search" placeholder="Search..." aria-label="Search games" />
+            <div class="nav-search-field">
+              <i class="fa-solid fa-magnifying-glass nav-search-icon" aria-hidden="true"></i>
+              <input id="q" class="nav-search-inp" type="text" placeholder="Search..." aria-label="Search games" autocomplete="off" spellcheck="false" />
+              <button type="button" class="nav-search-clear hidden" id="search-clear" aria-label="Clear search">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+              </button>
+            </div>
           </div>
           <div class="header-account account-menu-host" id="header-account-browse">
             <button class="account-trigger account-trigger--guest" id="auth-control" type="button" style="display:none">
@@ -563,9 +577,16 @@ function renderShell(): void {
                       <i class="fa-solid fa-plus" aria-hidden="true"></i>
                     </button>
                   </div>
-                  <button class="game-details-btn" id="gp-details-btn" type="button" title="More options">
-                    <i class="fa-solid fa-ellipsis" aria-hidden="true"></i><span>More options</span>
-                  </button>
+                  <div class="game-options-host">
+                    <button class="game-details-btn" id="gp-details-btn" type="button" title="More options" aria-haspopup="menu" aria-expanded="false" aria-controls="gp-options-menu">
+                      <i class="fa-solid fa-ellipsis" aria-hidden="true"></i><span>More options</span>
+                    </button>
+                    <div class="game-options-menu hidden" id="gp-options-menu" role="menu" aria-label="More options">
+                      <button type="button" class="account-menu-action" id="gp-report-btn" role="menuitem">
+                        <i class="fa-solid fa-flag" aria-hidden="true"></i><span>Report an issue</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </aside>
               <main class="game-page-main">
@@ -605,6 +626,10 @@ function renderShell(): void {
                 <section class="game-section game-reveal-block">
                   <h2 class="game-section-title">More like this</h2>
                   <div id="gp-rec" class="game-rec-wrap"></div>
+                </section>
+                <section class="game-section game-reveal-block" id="gp-comments-section">
+                  <h2 class="game-section-title">Comments</h2>
+                  <div id="gp-comments-body"></div>
                 </section>
               </main>
             </div>
@@ -735,6 +760,9 @@ function renderShell(): void {
       </div>
     </div>
     ${authModalMarkup()}
+    ${guestDownloadGateMarkup()}
+    ${gameReportMarkup()}
+    ${commentReportMarkup()}
     <footer class="footer">
       <div>
         <div class="footer-brand">
@@ -754,8 +782,11 @@ function closeGamePage(push = true): void {
   closeDownloadModal();
   closePackageModal();
   closeCollectionModal();
+  closeGameReportUi();
+  closeCommentReportUi();
   activeGame = null;
   setActiveGameForCollections(null);
+  setActiveGameForComments(null);
   document.body.classList.remove("game-view");
   syncHeaderAccountPlacement();
   const page = document.getElementById("gamePage");
@@ -941,21 +972,25 @@ function renderGameTags(container: HTMLElement, game: TitleEntry): void {
   }
 }
 
-function bindHorizontalScroll(container: HTMLElement, selector: string): void {
+function bindHorizontalScroll(container: HTMLElement, selector: string): () => void {
   const wrap = container.querySelector<HTMLElement>(".game-scroll-wrap");
   const track = container.querySelector<HTMLElement>(selector);
   const prev = container.querySelector<HTMLButtonElement>(".game-scroll-prev");
   const next = container.querySelector<HTMLButtonElement>(".game-scroll-next");
-  if (!wrap || !track || !next) return;
+  if (!wrap || !track || !next) return () => {};
 
   const syncScrollFades = (): void => {
-    const itemCount = track.children.length;
-    const overflow = track.scrollWidth > track.clientWidth + 4;
-    const atStart = track.scrollLeft <= 4;
-    const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
-    wrap.classList.toggle("has-overflow", overflow || itemCount > 1);
-    wrap.classList.toggle("can-scroll-left", itemCount > 1 && !atStart);
-    wrap.classList.toggle("can-scroll-right", itemCount > 1 && !atEnd);
+    const overflow = track.scrollWidth > track.clientWidth + 2;
+    const atStart = track.scrollLeft <= 2;
+    const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 2;
+    wrap.classList.toggle("has-overflow", overflow);
+    wrap.classList.toggle("can-scroll-left", overflow && !atStart);
+    wrap.classList.toggle("can-scroll-right", overflow && !atEnd);
+  };
+
+  const scheduleSync = (): void => {
+    syncScrollFades();
+    requestAnimationFrame(() => requestAnimationFrame(syncScrollFades));
   };
 
   const scrollStep = (): number => Math.max(280, track.clientWidth * 0.75);
@@ -967,8 +1002,18 @@ function bindHorizontalScroll(container: HTMLElement, selector: string): void {
     track.scrollBy({ left: scrollStep(), behavior: "smooth" });
   });
   track.addEventListener("scroll", syncScrollFades, { passive: true });
-  window.addEventListener("resize", syncScrollFades);
-  syncScrollFades();
+  window.addEventListener("resize", scheduleSync);
+
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(scheduleSync);
+    ro.observe(track);
+    for (const child of track.children) {
+      if (child instanceof HTMLElement) ro.observe(child);
+    }
+  }
+
+  scheduleSync();
+  return scheduleSync;
 }
 
 let mediaLightboxImages: string[] = [];
@@ -1023,10 +1068,13 @@ function renderMediaStrip(container: HTMLElement, images: string[]): void {
   const scrollWrap = container.querySelector<HTMLElement>(".game-scroll-wrap");
   if (!track || !scrollWrap) return;
 
+  let syncScroll: () => void = () => {};
+
   void preloadImage(galleryImageUrl(images[0] ?? "")).then(() => {
     scrollWrap.hidden = false;
     container.classList.remove("is-loading");
     container.classList.add("is-loaded");
+    syncScroll();
   });
 
   images.forEach((src, index) => {
@@ -1039,6 +1087,7 @@ function renderMediaStrip(container: HTMLElement, images: string[]): void {
     img.src = proxied;
     img.alt = `Screenshot ${index + 1}`;
     img.loading = "lazy";
+    img.addEventListener("load", syncScroll, { once: true });
     const zoom = document.createElement("span");
     zoom.className = "game-media-card-zoom";
     zoom.setAttribute("aria-hidden", "true");
@@ -1048,7 +1097,9 @@ function renderMediaStrip(container: HTMLElement, images: string[]): void {
     button.addEventListener("click", () => openMediaLightbox(images.map(galleryImageUrl), index));
     track.appendChild(button);
   });
-  bindHorizontalScroll(container, ".game-media-scroll");
+
+  syncScroll = bindHorizontalScroll(container, ".game-media-scroll");
+  syncScroll();
 }
 
 function renderGameRecommendations(container: HTMLElement, game: TitleEntry): void {
@@ -1075,10 +1126,13 @@ function renderGameRecommendations(container: HTMLElement, game: TitleEntry): vo
   const scrollWrap = container.querySelector<HTMLElement>(".game-scroll-wrap");
   if (!track || !scrollWrap) return;
 
+  let syncScroll: () => void = () => {};
+
   void preloadImage(coverUrl(picks[0]!)).then(() => {
     scrollWrap.hidden = false;
     container.classList.remove("is-loading");
     container.classList.add("is-loaded");
+    syncScroll();
   });
 
   for (const rec of picks) {
@@ -1100,13 +1154,16 @@ function renderGameRecommendations(container: HTMLElement, game: TitleEntry): vo
     const recCover = button.querySelector<HTMLImageElement>(".game-rec-cover img");
     if (recCover) {
       bindCroppedCover(recCover, coverUrl(rec), {
-        fallbackSrc: `https://placehold.co/280x390/202020/ffffff.png?text=${encodeURIComponent(rec.name)}`
+        fallbackSrc: `https://placehold.co/280x390/202020/ffffff.png?text=${encodeURIComponent(rec.name)}`,
+        onReady: syncScroll
       });
     }
     button.addEventListener("click", () => openGamePage(rec));
     track.appendChild(button);
   }
-  bindHorizontalScroll(container, ".game-rec-scroll");
+
+  syncScroll = bindHorizontalScroll(container, ".game-rec-scroll");
+  syncScroll();
 }
 
 function openGamePage(game: TitleEntry, push = true): void {
@@ -1115,6 +1172,7 @@ function openGamePage(game: TitleEntry, push = true): void {
   closeCollectionModal();
   activeGame = game;
   setActiveGameForCollections(game);
+  setActiveGameForComments(game);
   const title = document.getElementById("gp-title");
   const score = document.getElementById("gp-score");
   const desc = document.getElementById("gp-desc");
@@ -1475,6 +1533,7 @@ function renderEmptyCatalog(): void {
     syncAddonTypeToUrl("all", true);
     const input = document.getElementById("q") as HTMLInputElement | null;
     if (input) input.value = "";
+    syncSearchClearButton();
     syncRegion("all");
     setDropdownValue("sort", defaultSortForCategory());
     renderGenreRail();
@@ -1534,6 +1593,26 @@ function bindSiteHeroEvents(): void {
     event.preventDefault();
     scrollBelowHeader(document.getElementById("catalogSection"));
   });
+}
+
+function syncSearchClearButton(): void {
+  const input = document.getElementById("q") as HTMLInputElement | null;
+  const clearBtn = document.getElementById("search-clear");
+  const field = document.querySelector<HTMLElement>(".nav-search-field");
+  if (!input || !clearBtn) return;
+  const hasQuery = input.value.trim().length > 0;
+  clearBtn.classList.toggle("hidden", !hasQuery);
+  clearBtn.toggleAttribute("disabled", !hasQuery);
+  field?.classList.toggle("has-query", hasQuery);
+}
+
+function clearSearchQuery(): void {
+  const input = document.getElementById("q") as HTMLInputElement | null;
+  if (!input) return;
+  input.value = "";
+  syncSearchClearButton();
+  applyFilters();
+  input.focus();
 }
 
 function updateSearchPlaceholder(): void {
@@ -1897,6 +1976,7 @@ function bindGenreEvents(): void {
       syncAddonTypeToUrl("all", true);
       const input = document.getElementById("q") as HTMLInputElement | null;
       if (input) input.value = "";
+      syncSearchClearButton();
       syncRegion("all");
       setDropdownValue("sort", defaultSortForCategory());
       renderGenreRail();
@@ -1914,6 +1994,7 @@ function applyFilters(): void {
   const title = document.getElementById("lTitle");
   if (title) title.textContent = catalogSectionTitle();
   updateSearchPlaceholder();
+  syncSearchClearButton();
   closePackageModal();
 
   filtered = db.filter((g) => {
@@ -2052,10 +2133,13 @@ function bindStaticEvents(): void {
   bindGenreEvents();
   bindFilterDrawer();
   let searchTimer = 0;
-  document.getElementById("q")?.addEventListener("input", () => {
+  const searchInput = document.getElementById("q") as HTMLInputElement | null;
+  searchInput?.addEventListener("input", () => {
+    syncSearchClearButton();
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => applyFilters(), 150);
   });
+  document.getElementById("search-clear")?.addEventListener("click", () => clearSearchQuery());
   bindFormControlGlobals();
   mountDropdown("sort", onSortChange);
   mountDropdown("browseReg", () => syncRegion(getDropdownValue("browseReg")));
@@ -2105,6 +2189,10 @@ async function bootstrap(): Promise<void> {
   bindStaticEvents();
   bindAuthUi();
   bindCollectionUi();
+  bindCommentsUi();
+  bindCommentReportUi();
+  bindGuestDownloadGateUi();
+  bindGameReportUi(() => activeGame);
   const [, rows] = await Promise.all([initAuth(), loadTitles(), initProxyPool()]);
   db = rows;
   renderSiteHero();

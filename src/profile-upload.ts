@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { isUploadedProfileImageUrl } from "./sanitize";
 import { getSupabase } from "./supabase";
 
 export const GAMERPIC_MAX_BYTES = 512 * 1024;
@@ -130,5 +131,8 @@ export async function uploadProfileImage(user: User, kind: ProfileImageKind, fil
 
   const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
   const versioned = `${data.publicUrl}?v=${Date.now()}`;
+  if (!isUploadedProfileImageUrl(versioned, user.id)) {
+    throw new Error("Upload succeeded but the image URL could not be verified.");
+  }
   return versioned;
 }

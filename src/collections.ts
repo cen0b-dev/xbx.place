@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { sanitizeCollectionName } from "./sanitize";
 import { getSupabase } from "./supabase";
 
 export type Collection = {
@@ -124,7 +125,7 @@ export async function createCollection(user: User, input: CreateCollectionInput)
   const supabase = getSupabase();
   if (!supabase) throw new Error("Supabase is not configured.");
 
-  const name = input.name.trim();
+  const name = sanitizeCollectionName(input.name);
   if (!name) throw new Error("Collection name is required.");
 
   const { data, error } = await supabase
@@ -188,7 +189,7 @@ export async function updateCollection(collectionId: string, input: UpdateCollec
 
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) {
-    const name = input.name.trim();
+    const name = sanitizeCollectionName(input.name);
     if (!name) throw new Error("Collection name is required.");
     patch.name = name;
   }

@@ -205,6 +205,10 @@ async function main() {
     }
   }
 
+  map["__xbx_honeypot_internal_debug__.iso"] = "__HONEYPOT__";
+  map["__xbx_honeypot_catalog_probe__.zip"] = "__HONEYPOT__";
+  map["__xbx_honeypot_scraper_canary__.xex"] = "__HONEYPOT__";
+
   await writeFile(OUTPUT_PATH, `${JSON.stringify(map, null, 2)}\n`, "utf8");
   // eslint-disable-next-line no-console
   console.log(

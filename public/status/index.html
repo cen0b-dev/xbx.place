@@ -109,6 +109,35 @@
     .skeleton { background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--r-md); height: 210px; animation: pulse 1.4s ease-in-out infinite; }
     @keyframes pulse { 0%,100%{opacity:.35} 50%{opacity:.65} }
 
+    .comments-mod-list { display: flex; flex-direction: column; gap: 10px; }
+    .comment-mod-item {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 14px 16px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+    .comment-mod-body { flex: 1; min-width: 0; }
+    .comment-mod-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; display: flex; flex-wrap: wrap; gap: 6px 10px; }
+    .comment-mod-meta strong { color: var(--text-sec); font-weight: 600; }
+    .comment-mod-text { font-size: 13px; color: var(--text-body); line-height: 1.45; word-break: break-word; }
+    .comment-mod-actions { flex-shrink: 0; }
+    .comment-mod-delete {
+      padding: 6px 12px;
+      background: transparent;
+      border: 1px solid var(--border-ctrl);
+      border-radius: var(--r-sm);
+      color: var(--text-muted);
+      font: 12px var(--font);
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .comment-mod-delete:hover { border-color: var(--red); color: #ef5350; }
+    .comment-mod-delete:disabled { opacity: .5; cursor: not-allowed; }
+
     @media (max-width: 640px) {
       .header { padding: 0 20px; }
       main { padding: 24px 20px 48px; }
@@ -178,6 +207,11 @@
       <div class="section-label" id="cookies-label">Internet Archive Cookies</div>
       <div class="card-grid" id="cookies-grid"></div>
     </div>
+
+    <div class="section-block">
+      <div class="section-label" id="comments-label">User comments</div>
+      <div class="comments-mod-list" id="comments-mod-list"></div>
+    </div>
   </main>
 </div>
 
@@ -188,6 +222,9 @@
   const SUPABASE_KEY = CFG.supabaseKey || "";
   const STATS_URL = SUPABASE_URL
     ? SUPABASE_URL.replace(/\/$/, "") + "/functions/v1/worker-stats"
+    : "";
+  const MODERATE_URL = SUPABASE_URL
+    ? SUPABASE_URL.replace(/\/$/, "") + "/functions/v1/moderate-comments"
     : "";
 
   function statsHeaders(pw) {
@@ -219,6 +256,8 @@
   const summaryBar   = document.getElementById("summary-bar");
   const workersLabel = document.getElementById("workers-label");
   const cookiesLabel = document.getElementById("cookies-label");
+  const commentsLabel = document.getElementById("comments-label");
+  const commentsModList = document.getElementById("comments-mod-list");
 
   function showError(msg) {
     loginErr.textContent = msg;
@@ -238,7 +277,15 @@
       if (!res.ok) { showError(`Error ${res.status} from stats endpoint.`); return; }
       password = pw;
       sessionStorage.setItem(SESSION_KEY, pw);
-      showDashboard(await res.json());
+      const stats = await res.json();
+      showDashboard(stats);
+      if (MODERATE_URL) {
+        const commentsRes = await fetch(MODERATE_URL, { headers: statsHeaders(pw) });
+        if (commentsRes.ok) {
+          const payload = await commentsRes.json().catch(() => ({}));
+          renderComments(payload.comments ?? [], stats.asOf ?? new Date().toISOString());
+        }
+      }
     } catch {
       showError("Could not reach the stats endpoint. Is the Edge Function deployed?");
     }
@@ -264,6 +311,36 @@
 
   refreshBtn.addEventListener("click", () => { clearInterval(timer); loadData(); });
 
+  commentsModList?.addEventListener("click", async (e) => {
+    const btn = e.target.closest?.(".comment-mod-delete");
+    if (!btn || !MODERATE_URL) return;
+    const commentId = btn.dataset.commentId;
+    if (!commentId) return;
+    if (!confirm("Delete this comment permanently?")) return;
+
+    btn.disabled = true;
+    try {
+      const res = await fetch(MODERATE_URL, {
+        method: "DELETE",
+        headers: { ...statsHeaders(password), "Content-Type": "application/json" },
+        body: JSON.stringify({ comment_id: commentId }),
+      });
+      if (res.status === 401) { sessionStorage.removeItem(SESSION_KEY); location.reload(); return; }
+      if (!res.ok) {
+        alert(`Could not delete comment (${res.status}).`);
+        btn.disabled = false;
+        return;
+      }
+      btn.closest(".comment-mod-item")?.remove();
+      if (!commentsModList.querySelector(".comment-mod-item")) {
+        commentsModList.innerHTML = `<p style="color:var(--text-muted);font-size:13px">No comments yet.</p>`;
+      }
+    } catch {
+      alert("Could not delete comment.");
+      btn.disabled = false;
+    }
+  });
+
   function startTimer() {
     countdown = REFRESH_SECS;
     cntEl.textContent = `Refreshes in ${countdown}s`;
@@ -281,10 +358,29 @@
     setError(null);
 
     try {
-      const res = await fetch(STATS_URL, { headers: statsHeaders(password) });
-      if (res.status === 401) { sessionStorage.removeItem(SESSION_KEY); location.reload(); return; }
-      if (!res.ok) { setError(`Stats endpoint returned ${res.status}.`); return; }
-      render(await res.json());
+      const headers = statsHeaders(password);
+      const [statsRes, commentsRes] = await Promise.all([
+        fetch(STATS_URL, { headers }),
+        MODERATE_URL ? fetch(MODERATE_URL, { headers }) : Promise.resolve(null),
+      ]);
+      if (statsRes.status === 401) { sessionStorage.removeItem(SESSION_KEY); location.reload(); return; }
+      if (!statsRes.ok) { setError(`Stats endpoint returned ${statsRes.status}.`); return; }
+      const stats = await statsRes.json();
+      render(stats);
+
+      let comments = [];
+      if (commentsRes) {
+        if (commentsRes.status === 401) {
+          sessionStorage.removeItem(SESSION_KEY);
+          location.reload();
+          return;
+        }
+        if (commentsRes.ok) {
+          const payload = await commentsRes.json().catch(() => ({}));
+          comments = payload.comments ?? [];
+        }
+      }
+      renderComments(comments, stats.asOf ?? new Date().toISOString());
     } catch (err) {
       setError(`Could not reach stats endpoint: ${err.message}`);
     } finally {
@@ -302,6 +398,43 @@
     renderWorkers(workers ?? [], asOf);
     renderCookies(iaCookies ?? [], asOf);
     summaryBar.style.display = "flex";
+  }
+
+  function renderComments(comments, asOf) {
+    if (!commentsModList) return;
+    commentsLabel.textContent = `User comments — ${time(asOf)}`;
+
+    if (!comments.length) {
+      commentsModList.innerHTML = `<p style="color:var(--text-muted);font-size:13px">No comments yet.</p>`;
+      return;
+    }
+
+    commentsModList.innerHTML = comments.map((c) => {
+      const gamertag = esc(c.gamertag ?? "Player");
+      const body = esc(c.body ?? "");
+      const titleId = esc(c.title_id ?? "");
+      const when = relTime(c.created_at);
+      const gameUrl = titleId
+        ? `/?title=${encodeURIComponent(c.title_id)}`
+        : null;
+      const titleHtml = gameUrl
+        ? `<a href="${esc(gameUrl)}" target="_blank" rel="noopener">${titleId}</a>`
+        : titleId;
+
+      return `<div class="comment-mod-item" data-comment-id="${esc(c.id)}">
+  <div class="comment-mod-body">
+    <div class="comment-mod-meta">
+      <span><strong>${gamertag}</strong></span>
+      <span>${when}</span>
+      <span>· ${titleHtml}</span>
+    </div>
+    <div class="comment-mod-text">${body}</div>
+  </div>
+  <div class="comment-mod-actions">
+    <button class="comment-mod-delete" type="button" data-comment-id="${esc(c.id)}">Delete</button>
+  </div>
+</div>`;
+    }).join("");
   }
 
   function renderWorkers(workers, asOf) {

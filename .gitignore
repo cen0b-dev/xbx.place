@@ -2,7 +2,10 @@ node_modules/
 dist/
 .vite/
 .wrangler/
+workers/download-proxy/wrangler.deploy.toml
 .DS_Store
+
+# environment & secrets
 .env
 .env.*
 !.env.example
@@ -11,3 +14,14 @@ dist/
 .env.test.local
 .env.production.local
 scripts/.cf-accounts.json
+
+# internal architecture docs — reveal security model, secret names, and admin structure
+design/
+supabase/README.md
+
+# IA session cookie strategy — reveals bypass approach
+scripts/ia-cookie-pool.mjs
+scripts/manage-ia-cookies.mjs
+
+# AI tooling config
+.cursor/

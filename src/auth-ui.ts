@@ -23,6 +23,7 @@ import {
   fallbackGamerpic,
   loadProfile,
   loadPublicProfileByGamertag,
+  profileBannerImage,
   profileImage,
   profileName,
   saveProfile,
@@ -31,6 +32,7 @@ import {
   type PublicProfile
 } from "./profile";
 import { profileImageUploadHint, uploadProfileImage, type ProfileImageKind } from "./profile-upload";
+import { escapeAttr, sanitizeCollectionName, sanitizeGamertag } from "./sanitize";
 import type { TitleEntry } from "./types";
 
 let authMode: AuthMode = "sign-in";
@@ -108,7 +110,7 @@ function setAuthBusy(busy: boolean): void {
   if (password) password.disabled = busy;
 }
 
-export function openAuthModal(reason?: string): void {
+export function openAuthModal(reason?: string, mode: AuthMode = "sign-in"): void {
   const body = document.getElementById("auth-body");
   if (body && reason) {
     body.textContent = reason;
@@ -117,7 +119,7 @@ export function openAuthModal(reason?: string): void {
       "Sign in or create a free account to save your profile, gamerpic, and game collections.";
   }
   setAuthError(null);
-  setAuthMode("sign-in");
+  setAuthMode(mode);
   document.getElementById("authMod")?.classList.add("show");
   window.setTimeout(() => {
     document.getElementById("auth-email")?.focus();
@@ -154,8 +156,8 @@ function toggleAccountMenu(): void {
 function profileFormValues(): ProfileInput {
   return {
     gamertag: (document.getElementById("profile-gamertag") as HTMLInputElement | null)?.value ?? "",
-    gamerpic_url: (document.getElementById("profile-gamerpic") as HTMLInputElement | null)?.value || null,
-    banner_url: (document.getElementById("profile-banner") as HTMLInputElement | null)?.value || null,
+    gamerpic_url: activeProfile?.gamerpic_url ?? null,
+    banner_url: activeProfile?.banner_url ?? null,
     bio: (document.getElementById("profile-bio") as HTMLTextAreaElement | null)?.value || null
   };
 }
@@ -163,10 +165,10 @@ function profileFormValues(): ProfileInput {
 function fillProfileForm(): void {
   const name = profileName(activeProfile, activeUser);
   const image = profileImage(activeProfile, activeUser);
-  const banner = activeProfile?.banner_url || "";
+  const banner = profileBannerImage(activeProfile, activeUser?.id);
   const bio = activeProfile?.bio || "";
   const email = activeUser?.email ?? "";
-  const handle = `@${name.replace(/\s+/g, "").toLowerCase()}`;
+  const handle = `@${sanitizeGamertag(name).replace(/\s+/g, "").toLowerCase()}`;
   const memberSince = formatMemberSince(activeProfile?.created_at);
   const gamerpicPreview = document.getElementById("profile-pic-preview") as HTMLImageElement | null;
   setText("profile-display-name", name);
@@ -180,15 +182,11 @@ function fillProfileForm(): void {
   setText("account-menu-handle", handle);
 
   const gamertag = document.getElementById("profile-gamertag") as HTMLInputElement | null;
-  const gamerpic = document.getElementById("profile-gamerpic") as HTMLInputElement | null;
-  const bannerInput = document.getElementById("profile-banner") as HTMLInputElement | null;
   const bioInput = document.getElementById("profile-bio") as HTMLTextAreaElement | null;
   if (gamertag) gamertag.value = name;
-  if (gamerpic) gamerpic.value = activeProfile?.gamerpic_url ?? "";
-  if (bannerInput) bannerInput.value = banner;
   if (bioInput) bioInput.value = bio;
   if (gamerpicPreview) gamerpicPreview.src = image;
-  setProfileBannerPreview(banner);
+  setProfileBannerPreview(activeProfile, activeUser?.id);
   document.querySelectorAll<HTMLImageElement>("[data-profile-avatar]").forEach((img) => {
     img.src = image;
   });
@@ -206,10 +204,10 @@ function profileHandleFromName(name: string): string {
   return `@${name.replace(/\s+/g, "").toLowerCase()}`;
 }
 
-function setProfileBannerPreview(bannerUrl: string | null | undefined): void {
+function setProfileBannerPreview(profile: Profile | PublicProfile | null, userId?: string): void {
   const bannerPreview = document.getElementById("profile-banner-preview");
   if (!bannerPreview) return;
-  const url = bannerUrl?.trim() || "";
+  const url = profile ? profileBannerImage(profile, userId ?? profile.id) : null;
   bannerPreview.classList.toggle("profile-hub-banner--custom", Boolean(url));
   bannerPreview.classList.toggle("profile-hub-banner--fallback", !url);
   if (url) {
@@ -241,8 +239,7 @@ function showProfileNotFound(show: boolean): void {
 
 function fillPublicProfileView(profile: PublicProfile): void {
   const name = profile.gamertag.trim() || "Player";
-  const image = profile.gamerpic_url || fallbackGamerpic(profile.gamertag);
-  const banner = profile.banner_url || "";
+  const image = profileImage(profile, null);
   const bio = profile.bio || "";
   const handle = profileHandleFromName(name);
   const memberSince = formatMemberSince(profile.created_at);
@@ -251,7 +248,7 @@ function fillPublicProfileView(profile: PublicProfile): void {
   setText("profile-view-bio", bio || "No bio yet.");
   setText("profile-view-handle", handle);
   setText("profile-view-member-tile", memberSince);
-  setProfileBannerPreview(banner);
+  setProfileBannerPreview(profile);
   document.querySelectorAll<HTMLImageElement>("[data-profile-avatar]").forEach((img) => {
     img.src = image;
   });
@@ -433,7 +430,7 @@ async function submitProfileCollectionCreate(): Promise<void> {
 
   try {
     await createCollection(activeUser, {
-      name,
+      name: sanitizeCollectionName(name),
       is_public: publicInput?.checked ?? false
     });
     if (nameInput) nameInput.value = "";
@@ -511,9 +508,8 @@ export function updateAuthControl(user: User | null): void {
 
   if (user) {
     btn.className = "account-trigger account-trigger--signed";
-    btn.innerHTML = `<img class="account-trigger-pic" data-profile-avatar src="${profileImage(
-      activeProfile,
-      user
+    btn.innerHTML = `<img class="account-trigger-pic" data-profile-avatar src="${escapeAttr(
+      profileImage(activeProfile, user)
     )}" alt="" />`;
   } else {
     btn.className = "account-trigger account-trigger--guest";
@@ -536,7 +532,7 @@ function renderAccountMenu(): void {
 
   const name = escapeHtml(profileName(activeProfile, activeUser));
   const email = escapeHtml(activeUser.email ?? "");
-  const image = profileImage(activeProfile, activeUser);
+  const image = escapeAttr(profileImage(activeProfile, activeUser));
 
   menu.innerHTML = `
     <div class="browse-filter-drawer-head">
@@ -731,11 +727,14 @@ async function handleProfileImageUpload(kind: ProfileImageKind, file: File): Pro
   setProfileStatus(`Uploading ${label}...`);
   try {
     const url = await uploadProfileImage(activeUser, kind, file);
-    const input = document.getElementById(kind === "gamerpic" ? "profile-gamerpic" : "profile-banner") as
-      | HTMLInputElement
-      | null;
-    if (input) input.value = url;
-    activeProfile = await saveProfile(activeUser, profileFormValues());
+    activeProfile = await saveProfile(
+      activeUser,
+      {
+        ...profileFormValues(),
+        ...(kind === "gamerpic" ? { gamerpic_url: url } : { banner_url: url })
+      },
+      activeProfile
+    );
     updateAuthControl(activeUser);
     fillProfileForm();
     setProfileStatus(`${kind === "gamerpic" ? "Gamerpic" : "Banner"} uploaded.`);
@@ -757,7 +756,7 @@ async function submitProfileForm(): Promise<void> {
   if (submit) submit.disabled = true;
   setProfileStatus("Saving...");
   try {
-    activeProfile = await saveProfile(activeUser, input);
+    activeProfile = await saveProfile(activeUser, input, activeProfile);
     updateAuthControl(activeUser);
     setProfileStatus("Profile updated.");
   } catch (error) {
@@ -892,15 +891,7 @@ export function bindAuthUi(): void {
     void syncProfileRouteFromUrl();
   });
   document.getElementById("profile-gamertag")?.addEventListener("input", () => fillProfileForm());
-  document.getElementById("profile-gamerpic")?.addEventListener("input", () => fillProfileForm());
-  document.getElementById("profile-banner")?.addEventListener("input", () => fillProfileForm());
   document.getElementById("profile-bio")?.addEventListener("input", () => fillProfileForm());
-  document.getElementById("profile-random-pic")?.addEventListener("click", () => {
-    const input = document.getElementById("profile-gamerpic") as HTMLInputElement | null;
-    if (!input) return;
-    input.value = fallbackGamerpic(`${Date.now()}`);
-    fillProfileForm();
-  });
   document.getElementById("profile-gamerpic-file")?.addEventListener("change", (event) => {
     const file = (event.target as HTMLInputElement).files?.[0];
     (event.target as HTMLInputElement).value = "";
@@ -915,7 +906,7 @@ export function bindAuthUi(): void {
 
 export function authModalMarkup(): string {
   return `
-    <div class="overlay" id="authMod">
+    <div class="overlay overlay--fit" id="authMod">
       <div class="game-modal game-modal--ambient">
         <div class="game-modal-bg" aria-hidden="true">
           <img class="game-modal-bg-img" alt="" />
@@ -1068,10 +1059,8 @@ export function authModalMarkup(): string {
                           <i class="fa-solid fa-upload"></i><span>Upload</span>
                         </label>
                         <input id="profile-gamerpic-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden />
-                        <button class="icon-btn" id="profile-random-pic" type="button" aria-label="Use generated gamerpic"><i class="fa-solid fa-dice"></i></button>
                       </div>
                       <p class="profile-upload-hint">${profileImageUploadHint("gamerpic")}</p>
-                      <input id="profile-gamerpic" class="inp" type="url" placeholder="Or paste image URL" />
                     </div>
                   </div>
                   <div class="metro-field metro-field--row profile-upload-field">
@@ -1084,7 +1073,6 @@ export function authModalMarkup(): string {
                         <input id="profile-banner-file" type="file" accept="image/jpeg,image/png,image/webp" hidden />
                       </div>
                       <p class="profile-upload-hint">${profileImageUploadHint("banner")}</p>
-                      <input id="profile-banner" class="inp" type="url" placeholder="Or paste banner URL" />
                     </div>
                   </div>
                   <div class="metro-field metro-field--row profile-bio-field">

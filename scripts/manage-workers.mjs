@@ -135,6 +135,56 @@ async function putSecret(accountId, workerName, name, value, token) {
   if (!d.success) throw new Error(JSON.stringify(d.errors));
 }
 
+async function listKvNamespaces(accountId, token) {
+  const d = await cfFetch(`/accounts/${accountId}/storage/kv/namespaces?per_page=100`, {}, token);
+  return Array.isArray(d?.result) ? d.result : [];
+}
+
+async function createKvNamespace(accountId, title, token) {
+  const d = await cfFetch(
+    `/accounts/${accountId}/storage/kv/namespaces`,
+    { method: "POST", body: JSON.stringify({ title }) },
+    token
+  );
+  if (!d.success) throw new Error(JSON.stringify(d.errors));
+  return d.result?.id ?? null;
+}
+
+async function ensureDownloadKvNamespace(account) {
+  if (account.downloadKvId) return account.downloadKvId;
+  const title = "xbx-download-security";
+  const existing = await listKvNamespaces(account.accountId, account.apiToken);
+  const found = existing.find((ns) => ns.title === title);
+  if (found?.id) {
+    account.downloadKvId = found.id;
+    return found.id;
+  }
+  const id = await createKvNamespace(account.accountId, title, account.apiToken);
+  account.downloadKvId = id;
+  return id;
+}
+
+function writeDeployWranglerConfig(workerDir, kvId) {
+  const basePath = join(workerDir, "wrangler.toml");
+  const deployPath = join(workerDir, "wrangler.deploy.toml");
+  const base = readFileSync(basePath, "utf8");
+  const patched = base.replace(
+    /id = "00000000000000000000000000000000"/,
+    `id = "${kvId}"`
+  );
+  writeFileSync(deployPath, patched, "utf8");
+  return deployPath;
+}
+
+function ensureDownloadSigningSecret(env) {
+  let secret = (env.DOWNLOAD_SIGNING_SECRET ?? "").trim();
+  if (secret) return secret;
+  secret = randomBytes(32).toString("hex");
+  setEnvLocalKey("DOWNLOAD_SIGNING_SECRET", secret);
+  ok(`Generated DOWNLOAD_SIGNING_SECRET → saved to .env.local`);
+  return secret;
+}
+
 // ---------------------------------------------------------------------------
 // Supabase REST helpers
 // ---------------------------------------------------------------------------
@@ -193,13 +243,10 @@ async function autoSyncSupabase(config) {
 
   const secretArgs = [`MANAGED_ACCOUNTS=${JSON.stringify(managed)}`];
   if (config.dashboardPassword) secretArgs.push(`DASHBOARD_PASSWORD=${config.dashboardPassword}`);
-  const env = loadEnvLocal();
-  const discordWebhook = (env.DISCORD_WEBHOOK_URL ?? "").trim();
-  if (discordWebhook) secretArgs.push(`DISCORD_WEBHOOK_URL=${discordWebhook}`);
 
   try {
     execFileSync("npx", ["supabase", "secrets", "set", ...secretArgs], { cwd: ROOT, stdio: "pipe" });
-    const extra = [config.dashboardPassword ? "DASHBOARD_PASSWORD" : "", discordWebhook ? "DISCORD_WEBHOOK_URL" : ""].filter(Boolean).join(", ");
+    const extra = config.dashboardPassword ? "DASHBOARD_PASSWORD" : "";
     ok(`Supabase secrets updated (MANAGED_ACCOUNTS${extra ? `, ${extra}` : ""})`);
   } catch (err) {
     warn(`Supabase secrets sync failed: ${err.stderr?.toString().trim() ?? err.message}`);
@@ -215,8 +262,8 @@ async function autoSyncAll(config) {
 // Wrangler helpers
 // ---------------------------------------------------------------------------
 
-function wranglerDeploy(workerDir, workerName, accountId, apiToken) {
-  execSync(`npx wrangler deploy --name ${workerName}`, {
+function wranglerDeploy(workerDir, workerName, accountId, apiToken, configPath = "wrangler.toml") {
+  execSync(`npx wrangler deploy --name ${workerName} --config ${configPath}`, {
     cwd: workerDir, stdio: "inherit",
     env: { ...process.env, CLOUDFLARE_API_TOKEN: apiToken, CLOUDFLARE_ACCOUNT_ID: accountId },
   });
@@ -224,10 +271,13 @@ function wranglerDeploy(workerDir, workerName, accountId, apiToken) {
 
 async function uploadDownloadProxySecrets(accountId, workerName, apiToken) {
   const env = loadEnvLocal();
+  const signingSecret = ensureDownloadSigningSecret(env);
   const secrets = {
-    SUPABASE_URL:              env.SUPABASE_URL ?? "",
-    SUPABASE_ANON_KEY:         env.SUPABASE_ANON_KEY ?? "",
+    SUPABASE_URL:              env.SUPABASE_URL ?? env.VITE_SUPABASE_URL ?? "",
+    SUPABASE_ANON_KEY:         env.SUPABASE_ANON_KEY ?? env.VITE_SUPABASE_ANON_KEY ?? "",
     SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+    DOWNLOAD_SIGNING_SECRET:   signingSecret,
+    TURNSTILE_SECRET_KEY:      env.TURNSTILE_SECRET_KEY ?? "",
   };
   head("Uploading worker secrets...");
   for (const [name, value] of Object.entries(secrets)) {
@@ -301,8 +351,20 @@ async function deployToAccount(config, idx, { syncAfter = true } = {}) {
   const { accountId, apiToken, workerName } = account;
   const workerDir = join(ROOT, "workers", "download-proxy");
 
+  head(`Ensuring KV namespace for ${account.label}...`);
+  try {
+    await ensureDownloadKvNamespace(account);
+    saveConfig(config);
+    ok(`DOWNLOAD_KV namespace: ${account.downloadKvId}`);
+  } catch (err) {
+    fail(`KV namespace setup failed: ${err.message}`);
+    return false;
+  }
+
+  writeDeployWranglerConfig(workerDir, account.downloadKvId);
+
   head(`Deploying ${workerName} to ${account.label}...`);
-  try { wranglerDeploy(workerDir, workerName, accountId, apiToken); }
+  try { wranglerDeploy(workerDir, workerName, accountId, apiToken, "wrangler.deploy.toml"); }
   catch { fail("wrangler deploy failed."); return false; }
 
   const subdomain = await getWorkerSubdomain(accountId, apiToken);

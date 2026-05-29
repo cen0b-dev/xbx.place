@@ -1,6 +1,7 @@
 /** Reference width for Xbox 360 box art; top strip is cropped at this scale. */
 const COVER_REF_WIDTH = 280;
-const COVER_CROP_TOP = 48;
+/** Matches --cover-crop-top in src/styles.css / design/tokens.css */
+const COVER_CROP_TOP = 37;
 
 const croppedCache = new Map<string, string>();
 

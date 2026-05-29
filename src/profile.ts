@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { sanitizeBio, sanitizeGamertag, sanitizeProfileImageUrl } from "./sanitize";
 import { getSupabase } from "./supabase";
 
 export type Profile = {
@@ -44,8 +45,21 @@ export function fallbackGamerpic(seed: string | null | undefined): string {
   return fallbackPics[total % fallbackPics.length] ?? "https://api.dicebear.com/9.x/shapes/svg?seed=new-player";
 }
 
-export function profileImage(profile: Profile | null, user: User | null): string {
-  return profile?.gamerpic_url || fallbackGamerpic(profile?.gamertag ?? user?.email);
+export function profileImage(
+  profile: Pick<Profile, "id" | "gamertag" | "gamerpic_url"> | null,
+  user: User | null
+): string {
+  const userId = profile?.id ?? user?.id;
+  const uploaded =
+    userId && profile?.gamerpic_url && sanitizeProfileImageUrl(profile.gamerpic_url, userId, "gamerpic");
+  return uploaded || fallbackGamerpic(profile?.gamertag ?? user?.email);
+}
+
+export function profileBannerImage(profile: Profile | PublicProfile | null, userId?: string): string | null {
+  if (!profile?.banner_url) return null;
+  const id = userId ?? ("id" in (profile ?? {}) ? profile.id : undefined);
+  if (!id) return null;
+  return sanitizeProfileImageUrl(profile.banner_url, id, "banner");
 }
 
 export function profileName(profile: Profile | null, user: User | null): string {
@@ -89,7 +103,7 @@ export async function loadProfile(user: User): Promise<Profile | null> {
     }
     throw error;
   }
-  if (data) return data as Profile;
+  if (data) return sanitizeLoadedProfile(data as Profile);
 
   return saveProfile(user, {
     gamertag: user.email?.split("@")[0] || "New Player",
@@ -99,17 +113,37 @@ export async function loadProfile(user: User): Promise<Profile | null> {
   });
 }
 
-export async function saveProfile(user: User, input: ProfileInput): Promise<Profile> {
+function sanitizeLoadedProfile(profile: Profile): Profile {
+  return {
+    ...profile,
+    gamertag: sanitizeGamertag(profile.gamertag),
+    bio: sanitizeBio(profile.bio),
+    gamerpic_url: sanitizeProfileImageUrl(profile.gamerpic_url, profile.id, "gamerpic"),
+    banner_url: sanitizeProfileImageUrl(profile.banner_url, profile.id, "banner")
+  };
+}
+
+function sanitizeProfileInput(user: User, input: ProfileInput, existing?: Profile | null): ProfileInput {
+  return {
+    gamertag: sanitizeGamertag(input.gamertag),
+    gamerpic_url: sanitizeProfileImageUrl(input.gamerpic_url, user.id, "gamerpic") ?? existing?.gamerpic_url ?? null,
+    banner_url: sanitizeProfileImageUrl(input.banner_url, user.id, "banner") ?? existing?.banner_url ?? null,
+    bio: sanitizeBio(input.bio)
+  };
+}
+
+export async function saveProfile(user: User, input: ProfileInput, existing?: Profile | null): Promise<Profile> {
   const supabase = getSupabase();
   if (!supabase) throw new Error("Supabase is not configured.");
 
+  const sanitized = sanitizeProfileInput(user, input, existing);
   const row = {
     id: user.id,
     email: user.email ?? null,
-    gamertag: input.gamertag.trim() || "New Player",
-    gamerpic_url: input.gamerpic_url?.trim() || null,
-    banner_url: input.banner_url?.trim() || null,
-    bio: input.bio?.trim() || null
+    gamertag: sanitized.gamertag,
+    gamerpic_url: sanitized.gamerpic_url,
+    banner_url: sanitized.banner_url,
+    bio: sanitized.bio
   };
 
   const { data, error } = await supabase.from("profiles").upsert(row, { onConflict: "id" }).select("*").single();
@@ -124,7 +158,7 @@ export async function saveProfile(user: User, input: ProfileInput): Promise<Prof
     }
     throw error;
   }
-  return data as Profile;
+  return sanitizeLoadedProfile(data as Profile);
 }
 
 export async function loadPublicProfileByGamertag(gamertag: string): Promise<PublicProfile | null> {
@@ -145,5 +179,14 @@ export async function loadPublicProfileByGamertag(gamertag: string): Promise<Pub
     throw error;
   }
 
-  return (data as PublicProfile | null) ?? null;
+  const profile = (data as PublicProfile | null) ?? null;
+  if (!profile) return null;
+
+  return {
+    ...profile,
+    gamertag: sanitizeGamertag(profile.gamertag),
+    bio: sanitizeBio(profile.bio),
+    gamerpic_url: sanitizeProfileImageUrl(profile.gamerpic_url, profile.id, "gamerpic"),
+    banner_url: sanitizeProfileImageUrl(profile.banner_url, profile.id, "banner")
+  };
 }

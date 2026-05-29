@@ -9,9 +9,18 @@ compatibility_date = "2024-12-01"
 [vars]
 IA_FILE_MAP_URL = "https://xbx.place/ia-file-map.json"
 MASTER_INDEX_URL = "https://xbx.place/master_index.json"
+ALLOWED_ORIGIN = "https://xbx.place"
+
+# KV namespace for rate limits, guest fingerprints, and IP blocks.
+# Created automatically by npm run workers on first deploy (id stored in scripts/.cf-accounts.json).
+[[kv_namespaces]]
+binding = "DOWNLOAD_KV"
+id = "00000000000000000000000000000000"
 
 # Secrets — set per worker account, never commit values:
 #   npx wrangler secret put SUPABASE_URL
 #   npx wrangler secret put SUPABASE_ANON_KEY
 #   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+#   npx wrangler secret put DOWNLOAD_SIGNING_SECRET
+#   npx wrangler secret put TURNSTILE_SECRET_KEY   (optional — bot challenges)
 # IA cookies are read from Supabase ia_cookie_pool (npm run ia-cookies).
