@@ -58,12 +58,14 @@ function injectPublicConfig(supabaseUrl: string, supabaseKey: string, env: Recor
 // ---------------------------------------------------------------------------
 function servePublicSubdirIndex(): Plugin {
   const rewrites: Record<string, string> = {
-    "/status":  "/status/index.html",
-    "/status/": "/status/index.html",
+    "/status":   "/status/index.html",
+    "/status/":  "/status/index.html",
     "/workers":  "/workers/index.html",
     "/workers/": "/workers/index.html",
-    "/test":  "/test/index.html",
-    "/test/": "/test/index.html",
+    "/test":     "/test/index.html",
+    "/test/":    "/test/index.html",
+    "/guides":   "/guides/index.html",
+    "/guides/":  "/guides/index.html",
   };
 
   function rewriteGenreOrGame(pathname: string): string | null {
@@ -86,6 +88,26 @@ function servePublicSubdirIndex(): Plugin {
         if (target) req.url = `${target}${search}`;
         next();
       });
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Replace font-display:block (FontAwesome default) with font-display:swap in
+// the bundled CSS so icon fonts never block text rendering.
+// ---------------------------------------------------------------------------
+function swapFontDisplay(): Plugin {
+  return {
+    name: "swap-font-display",
+    generateBundle(_options, bundle) {
+      for (const chunk of Object.values(bundle)) {
+        if (chunk.type === "asset" && chunk.fileName.endsWith(".css")) {
+          const src = chunk.source;
+          if (typeof src === "string") {
+            chunk.source = src.replace(/font-display:block/g, "font-display:swap");
+          }
+        }
+      }
     },
   };
 }
@@ -122,6 +144,7 @@ export default defineConfig(({ mode, command }) => {
     plugins: [
       servePublicSubdirIndex(),
       injectPublicConfig(supabaseUrl, supabaseKey, env),
+      swapFontDisplay(),
       ...(command === "build" ? [generateSeoArtifacts()] : []),
     ],
     build: { sourcemap: false },

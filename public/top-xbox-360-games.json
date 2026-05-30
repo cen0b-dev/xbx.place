@@ -1,0 +1,906 @@
+{
+  "generatedAt": "2026-05-30T07:07:37.851Z",
+  "count": 100,
+  "games": [
+    {
+      "position": 1,
+      "titleId": "545408A7",
+      "slug": "grand-theft-auto-v",
+      "name": "Grand Theft Auto V",
+      "rating": 5,
+      "path": "/game/grand-theft-auto-v/",
+      "url": "https://xbx.place/game/grand-theft-auto-v/"
+    },
+    {
+      "position": 2,
+      "titleId": "465607D8",
+      "slug": "steins-gate",
+      "name": "STEINS;GATE(オリジナル版)",
+      "rating": 5,
+      "path": "/game/steins-gate/",
+      "url": "https://xbx.place/game/steins-gate/"
+    },
+    {
+      "position": 3,
+      "titleId": "435A07D8",
+      "slug": "espgaluda-ii-black-label",
+      "name": "Espgaluda II Black Label",
+      "rating": 5,
+      "path": "/game/espgaluda-ii-black-label/",
+      "url": "https://xbx.place/game/espgaluda-ii-black-label/"
+    },
+    {
+      "position": 4,
+      "titleId": "505407D1",
+      "slug": "clannad",
+      "name": "CLANNAD",
+      "rating": 5,
+      "path": "/game/clannad/",
+      "url": "https://xbx.place/game/clannad/"
+    },
+    {
+      "position": 5,
+      "titleId": "454108CE",
+      "slug": "mass-effect-2",
+      "name": "Mass Effect 2",
+      "rating": 4.75,
+      "path": "/game/mass-effect-2/",
+      "url": "https://xbx.place/game/mass-effect-2/"
+    },
+    {
+      "position": 6,
+      "titleId": "425307D5",
+      "slug": "fallout-3",
+      "name": "Fallout 3",
+      "rating": 4.75,
+      "path": "/game/fallout-3/",
+      "url": "https://xbx.place/game/fallout-3/"
+    },
+    {
+      "position": 7,
+      "titleId": "425307D1",
+      "slug": "the-elder-scrolls-4-oblivion-game-of-the-year-edition",
+      "name": "The Elder Scrolls 4: Oblivion - Game of the Year Edition",
+      "rating": 4.75,
+      "path": "/game/the-elder-scrolls-4-oblivion-game-of-the-year-edition/",
+      "url": "https://xbx.place/game/the-elder-scrolls-4-oblivion-game-of-the-year-edition/"
+    },
+    {
+      "position": 8,
+      "titleId": "5454087C",
+      "slug": "borderlands-2",
+      "name": "Borderlands 2",
+      "rating": 4.75,
+      "path": "/game/borderlands-2/",
+      "url": "https://xbx.place/game/borderlands-2/"
+    },
+    {
+      "position": 9,
+      "titleId": "415608FC",
+      "slug": "call-of-duty-ghosts",
+      "name": "Call of Duty: Ghosts",
+      "rating": 4.75,
+      "path": "/game/call-of-duty-ghosts/",
+      "url": "https://xbx.place/game/call-of-duty-ghosts/"
+    },
+    {
+      "position": 10,
+      "titleId": "4D5307E8",
+      "slug": "mass-effect",
+      "name": "Mass Effect",
+      "rating": 4.75,
+      "path": "/game/mass-effect/",
+      "url": "https://xbx.place/game/mass-effect/"
+    },
+    {
+      "position": 11,
+      "titleId": "394F07D1",
+      "slug": "diablo-iii",
+      "name": "Diablo III",
+      "rating": 4.75,
+      "path": "/game/diablo-iii/",
+      "url": "https://xbx.place/game/diablo-iii/"
+    },
+    {
+      "position": 12,
+      "titleId": "57520828",
+      "slug": "batman-arkham-origins",
+      "name": "Batman: Arkham Origins",
+      "rating": 4.75,
+      "path": "/game/batman-arkham-origins/",
+      "url": "https://xbx.place/game/batman-arkham-origins/"
+    },
+    {
+      "position": 13,
+      "titleId": "4541099D",
+      "slug": "dead-space-3",
+      "name": "Dead Space 3",
+      "rating": 4.75,
+      "path": "/game/dead-space-3/",
+      "url": "https://xbx.place/game/dead-space-3/"
+    },
+    {
+      "position": 14,
+      "titleId": "555308B7",
+      "slug": "watch-dogs",
+      "name": "Watch Dogs",
+      "rating": 4.75,
+      "path": "/game/watch-dogs/",
+      "url": "https://xbx.place/game/watch-dogs/"
+    },
+    {
+      "position": 15,
+      "titleId": "4B4D07F6",
+      "slug": "saints-row-iv",
+      "name": "Saints Row IV",
+      "rating": 4.75,
+      "path": "/game/saints-row-iv/",
+      "url": "https://xbx.place/game/saints-row-iv/"
+    },
+    {
+      "position": 16,
+      "titleId": "555308CA",
+      "slug": "far-cry-4",
+      "name": "Far Cry 4",
+      "rating": 4.75,
+      "path": "/game/far-cry-4/",
+      "url": "https://xbx.place/game/far-cry-4/"
+    },
+    {
+      "position": 17,
+      "titleId": "434D082D",
+      "slug": "f1-2010",
+      "name": "F1 2010",
+      "rating": 4.75,
+      "path": "/game/f1-2010/",
+      "url": "https://xbx.place/game/f1-2010/"
+    },
+    {
+      "position": 18,
+      "titleId": "535007ED",
+      "slug": "phantom-breaker",
+      "name": "Phantom Breaker",
+      "rating": 4.75,
+      "path": "/game/phantom-breaker/",
+      "url": "https://xbx.place/game/phantom-breaker/"
+    },
+    {
+      "position": 19,
+      "titleId": "555308C5",
+      "slug": "south-park-the-stick-of-truth",
+      "name": "South Park: The Stick of Truth",
+      "rating": 4.75,
+      "path": "/game/south-park-the-stick-of-truth/",
+      "url": "https://xbx.place/game/south-park-the-stick-of-truth/"
+    },
+    {
+      "position": 20,
+      "titleId": "454109BA",
+      "slug": "battlefield-4",
+      "name": "Battlefield 4",
+      "rating": 4.75,
+      "path": "/game/battlefield-4/",
+      "url": "https://xbx.place/game/battlefield-4/"
+    },
+    {
+      "position": 21,
+      "titleId": "5351081B",
+      "slug": "lightning-returns-final-fantasy-xiii",
+      "name": "Lightning Returns: Final Fantasy XIII",
+      "rating": 4.75,
+      "path": "/game/lightning-returns-final-fantasy-xiii/",
+      "url": "https://xbx.place/game/lightning-returns-final-fantasy-xiii/"
+    },
+    {
+      "position": 22,
+      "titleId": "535507D4",
+      "slug": "raiden-fighters-aces",
+      "name": "Raiden Fighters Aces",
+      "rating": 4.75,
+      "path": "/game/raiden-fighters-aces/",
+      "url": "https://xbx.place/game/raiden-fighters-aces/"
+    },
+    {
+      "position": 23,
+      "titleId": "4E4D0862",
+      "slug": "dragon-ball-xenoverse",
+      "name": "Dragon Ball Xenoverse",
+      "rating": 4.75,
+      "path": "/game/dragon-ball-xenoverse/",
+      "url": "https://xbx.place/game/dragon-ball-xenoverse/"
+    },
+    {
+      "position": 24,
+      "titleId": "4B4D07F2",
+      "slug": "dead-island-riptide",
+      "name": "Dead Island Riptide",
+      "rating": 4.75,
+      "path": "/game/dead-island-riptide/",
+      "url": "https://xbx.place/game/dead-island-riptide/"
+    },
+    {
+      "position": 25,
+      "titleId": "4343081E",
+      "slug": "devil-may-cry-hd-collection",
+      "name": "Devil May Cry HD Collection",
+      "rating": 4.75,
+      "path": "/game/devil-may-cry-hd-collection/",
+      "url": "https://xbx.place/game/devil-may-cry-hd-collection/"
+    },
+    {
+      "position": 26,
+      "titleId": "4D530A87",
+      "slug": "fable-anniversary",
+      "name": "Fable Anniversary",
+      "rating": 4.75,
+      "path": "/game/fable-anniversary/",
+      "url": "https://xbx.place/game/fable-anniversary/"
+    },
+    {
+      "position": 27,
+      "titleId": "4B4E085E",
+      "slug": "metal-gear-solid-v-the-phantom-pain",
+      "name": "Metal Gear Solid V: The Phantom Pain",
+      "rating": 4.75,
+      "path": "/game/metal-gear-solid-v-the-phantom-pain/",
+      "url": "https://xbx.place/game/metal-gear-solid-v-the-phantom-pain/"
+    },
+    {
+      "position": 28,
+      "titleId": "4E4D0868",
+      "slug": "naruto-shippuden-ultimate-ninja-storm-revolution",
+      "name": "Naruto Shippuden: Ultimate Ninja Storm Revolution",
+      "rating": 4.75,
+      "path": "/game/naruto-shippuden-ultimate-ninja-storm-revolution/",
+      "url": "https://xbx.place/game/naruto-shippuden-ultimate-ninja-storm-revolution/"
+    },
+    {
+      "position": 29,
+      "titleId": "545408B0",
+      "slug": "nba-2k14",
+      "name": "NBA 2K14",
+      "rating": 4.75,
+      "path": "/game/nba-2k14/",
+      "url": "https://xbx.place/game/nba-2k14/"
+    },
+    {
+      "position": 30,
+      "titleId": "315A07D2",
+      "slug": "wwe-2k16",
+      "name": "WWE 2K16",
+      "rating": 4.75,
+      "path": "/game/wwe-2k16/",
+      "url": "https://xbx.place/game/wwe-2k16/"
+    },
+    {
+      "position": 31,
+      "titleId": "415608F8",
+      "slug": "destiny",
+      "name": "Destiny",
+      "rating": 4.75,
+      "path": "/game/destiny/",
+      "url": "https://xbx.place/game/destiny/"
+    },
+    {
+      "position": 32,
+      "titleId": "4E4D0860",
+      "slug": "dragon-ball-z-battle-of-z",
+      "name": "Dragon Ball Z Battle of Z",
+      "rating": 4.75,
+      "path": "/game/dragon-ball-z-battle-of-z/",
+      "url": "https://xbx.place/game/dragon-ball-z-battle-of-z/"
+    },
+    {
+      "position": 33,
+      "titleId": "565707D0",
+      "slug": "lollipop-chainsaw",
+      "name": "Lollipop Chainsaw",
+      "rating": 4.75,
+      "path": "/game/lollipop-chainsaw/",
+      "url": "https://xbx.place/game/lollipop-chainsaw/"
+    },
+    {
+      "position": 34,
+      "titleId": "454109C1",
+      "slug": "madden-nfl-25",
+      "name": "Madden NFL 25",
+      "rating": 4.75,
+      "path": "/game/madden-nfl-25/",
+      "url": "https://xbx.place/game/madden-nfl-25/"
+    },
+    {
+      "position": 35,
+      "titleId": "545108AB",
+      "slug": "nexuiz",
+      "name": "Nexuiz",
+      "rating": 4.75,
+      "path": "/game/nexuiz/",
+      "url": "https://xbx.place/game/nexuiz/"
+    },
+    {
+      "position": 36,
+      "titleId": "454109D0",
+      "slug": "titanfall",
+      "name": "Titanfall",
+      "rating": 4.75,
+      "path": "/game/titanfall/",
+      "url": "https://xbx.place/game/titanfall/"
+    },
+    {
+      "position": 37,
+      "titleId": "58410A30",
+      "slug": "battleblock-theater",
+      "name": "BattleBlock Theater",
+      "rating": 4.75,
+      "path": "/game/battleblock-theater/",
+      "url": "https://xbx.place/game/battleblock-theater/"
+    },
+    {
+      "position": 38,
+      "titleId": "465607D3",
+      "slug": "chaos-head-noah",
+      "name": "CHAOS;HEAD NOAH",
+      "rating": 4.75,
+      "path": "/game/chaos-head-noah/",
+      "url": "https://xbx.place/game/chaos-head-noah/"
+    },
+    {
+      "position": 39,
+      "titleId": "584113BF",
+      "slug": "far-cry-3-blood-dragon",
+      "name": "Far Cry 3 Blood Dragon",
+      "rating": 4.75,
+      "path": "/game/far-cry-3-blood-dragon/",
+      "url": "https://xbx.place/game/far-cry-3-blood-dragon/"
+    },
+    {
+      "position": 40,
+      "titleId": "435607D7",
+      "slug": "pinball-hall-of-fame",
+      "name": "Pinball Hall of Fame",
+      "rating": 4.75,
+      "path": "/game/pinball-hall-of-fame/",
+      "url": "https://xbx.place/game/pinball-hall-of-fame/"
+    },
+    {
+      "position": 41,
+      "titleId": "4D4B07D3",
+      "slug": "popcap-hits-vol-2",
+      "name": "PopCap Hits Vol 2",
+      "rating": 4.75,
+      "path": "/game/popcap-hits-vol-2/",
+      "url": "https://xbx.place/game/popcap-hits-vol-2/"
+    },
+    {
+      "position": 42,
+      "titleId": "545408AE",
+      "slug": "xcom-enemy-within",
+      "name": "XCOM Enemy Within",
+      "rating": 4.75,
+      "path": "/game/xcom-enemy-within/",
+      "url": "https://xbx.place/game/xcom-enemy-within/"
+    },
+    {
+      "position": 43,
+      "titleId": "465607D1",
+      "slug": "ketsui-kizuna-jigoku-tachi-extra",
+      "name": "Ketsui Kizuna Jigoku Tachi Extra",
+      "rating": 4.75,
+      "path": "/game/ketsui-kizuna-jigoku-tachi-extra/",
+      "url": "https://xbx.place/game/ketsui-kizuna-jigoku-tachi-extra/"
+    },
+    {
+      "position": 44,
+      "titleId": "425307E0",
+      "slug": "fallout-new-vegas",
+      "name": "Fallout: New Vegas",
+      "rating": 4.5,
+      "path": "/game/fallout-new-vegas/",
+      "url": "https://xbx.place/game/fallout-new-vegas/"
+    },
+    {
+      "position": 45,
+      "titleId": "41560817",
+      "slug": "call-of-duty-modern-warfare-2",
+      "name": "Call of Duty: Modern Warfare 2",
+      "rating": 4.5,
+      "path": "/game/call-of-duty-modern-warfare-2/",
+      "url": "https://xbx.place/game/call-of-duty-modern-warfare-2/"
+    },
+    {
+      "position": 46,
+      "titleId": "4D5307E6",
+      "slug": "halo-3",
+      "name": "Halo 3",
+      "rating": 4.5,
+      "path": "/game/halo-3/",
+      "url": "https://xbx.place/game/halo-3/"
+    },
+    {
+      "position": 47,
+      "titleId": "4D5307F1",
+      "slug": "fable-2",
+      "name": "Fable 2",
+      "rating": 4.5,
+      "path": "/game/fable-2/",
+      "url": "https://xbx.place/game/fable-2/"
+    },
+    {
+      "position": 48,
+      "titleId": "4D53084D",
+      "slug": "forza-motorsport-3",
+      "name": "Forza Motorsport 3",
+      "rating": 4.5,
+      "path": "/game/forza-motorsport-3/",
+      "url": "https://xbx.place/game/forza-motorsport-3/"
+    },
+    {
+      "position": 49,
+      "titleId": "555307D4",
+      "slug": "assassin-s-creed",
+      "name": "Assassin's Creed",
+      "rating": 4.5,
+      "path": "/game/assassin-s-creed/",
+      "url": "https://xbx.place/game/assassin-s-creed/"
+    },
+    {
+      "position": 50,
+      "titleId": "454108C0",
+      "slug": "dragon-age-origins-ultimate-edition",
+      "name": "Dragon Age: Origins - Ultimate Edition",
+      "rating": 4.5,
+      "path": "/game/dragon-age-origins-ultimate-edition/",
+      "url": "https://xbx.place/game/dragon-age-origins-ultimate-edition/"
+    },
+    {
+      "position": 51,
+      "titleId": "5454082B",
+      "slug": "red-dead-redemption",
+      "name": "Red Dead Redemption",
+      "rating": 4.5,
+      "path": "/game/red-dead-redemption/",
+      "url": "https://xbx.place/game/red-dead-redemption/"
+    },
+    {
+      "position": 52,
+      "titleId": "545407E6",
+      "slug": "mafia-2",
+      "name": "Mafia 2",
+      "rating": 4.5,
+      "path": "/game/mafia-2/",
+      "url": "https://xbx.place/game/mafia-2/"
+    },
+    {
+      "position": 53,
+      "titleId": "454108DF",
+      "slug": "dead-space-2",
+      "name": "Dead Space 2",
+      "rating": 4.5,
+      "path": "/game/dead-space-2/",
+      "url": "https://xbx.place/game/dead-space-2/"
+    },
+    {
+      "position": 54,
+      "titleId": "545407E7",
+      "slug": "borderlands",
+      "name": "Borderlands",
+      "rating": 4.5,
+      "path": "/game/borderlands/",
+      "url": "https://xbx.place/game/borderlands/"
+    },
+    {
+      "position": 55,
+      "titleId": "4D53082D",
+      "slug": "gears-of-war-2",
+      "name": "Gears of War 2",
+      "rating": 4.5,
+      "path": "/game/gears-of-war-2/",
+      "url": "https://xbx.place/game/gears-of-war-2/"
+    },
+    {
+      "position": 56,
+      "titleId": "555308AE",
+      "slug": "assassin-s-creed-iii",
+      "name": "Assassin's Creed III",
+      "rating": 4.5,
+      "path": "/game/assassin-s-creed-iii/",
+      "url": "https://xbx.place/game/assassin-s-creed-iii/"
+    },
+    {
+      "position": 57,
+      "titleId": "53510802",
+      "slug": "tomb-raider",
+      "name": "Tomb Raider",
+      "rating": 4.5,
+      "path": "/game/tomb-raider/",
+      "url": "https://xbx.place/game/tomb-raider/"
+    },
+    {
+      "position": 58,
+      "titleId": "454108A8",
+      "slug": "battlefield-bad-company-2",
+      "name": "Battlefield: Bad Company 2",
+      "rating": 4.5,
+      "path": "/game/battlefield-bad-company-2/",
+      "url": "https://xbx.place/game/battlefield-bad-company-2/"
+    },
+    {
+      "position": 59,
+      "titleId": "535107FA",
+      "slug": "deus-ex-human-revolution-director-s-cut",
+      "name": "Deus Ex: Human Revolution - Director's Cut",
+      "rating": 4.5,
+      "path": "/game/deus-ex-human-revolution-director-s-cut/",
+      "url": "https://xbx.place/game/deus-ex-human-revolution-director-s-cut/"
+    },
+    {
+      "position": 60,
+      "titleId": "545407F2",
+      "slug": "grand-theft-auto-iv",
+      "name": "Grand Theft Auto IV",
+      "rating": 4.5,
+      "path": "/game/grand-theft-auto-iv/",
+      "url": "https://xbx.place/game/grand-theft-auto-iv/"
+    },
+    {
+      "position": 61,
+      "titleId": "4D5307D5",
+      "slug": "gears-of-war",
+      "name": "Gears of War",
+      "rating": 4.5,
+      "path": "/game/gears-of-war/",
+      "url": "https://xbx.place/game/gears-of-war/"
+    },
+    {
+      "position": 62,
+      "titleId": "4D5308AB",
+      "slug": "gears-of-war-3",
+      "name": "Gears of War 3",
+      "rating": 4.5,
+      "path": "/game/gears-of-war-3/",
+      "url": "https://xbx.place/game/gears-of-war-3/"
+    },
+    {
+      "position": 63,
+      "titleId": "4D5307FA",
+      "slug": "lost-odyssey",
+      "name": "Lost Odyssey",
+      "rating": 4.5,
+      "path": "/game/lost-odyssey/",
+      "url": "https://xbx.place/game/lost-odyssey/"
+    },
+    {
+      "position": 64,
+      "titleId": "43430840",
+      "slug": "resident-evil-revelations-2",
+      "name": "Resident Evil Revelations 2",
+      "rating": 4.5,
+      "path": "/game/resident-evil-revelations-2/",
+      "url": "https://xbx.place/game/resident-evil-revelations-2/"
+    },
+    {
+      "position": 65,
+      "titleId": "443607D2",
+      "slug": "the-walking-dead",
+      "name": "The Walking Dead",
+      "rating": 4.5,
+      "path": "/game/the-walking-dead/",
+      "url": "https://xbx.place/game/the-walking-dead/"
+    },
+    {
+      "position": 66,
+      "titleId": "5553083B",
+      "slug": "assassin-s-creed-ii",
+      "name": "Assassin's Creed II",
+      "rating": 4.5,
+      "path": "/game/assassin-s-creed-ii/",
+      "url": "https://xbx.place/game/assassin-s-creed-ii/"
+    },
+    {
+      "position": 67,
+      "titleId": "54540861",
+      "slug": "bioshock-2",
+      "name": "Bioshock 2",
+      "rating": 4.5,
+      "path": "/game/bioshock-2/",
+      "url": "https://xbx.place/game/bioshock-2/"
+    },
+    {
+      "position": 68,
+      "titleId": "4541095D",
+      "slug": "mass-effect-3",
+      "name": "Mass Effect 3",
+      "rating": 4.5,
+      "path": "/game/mass-effect-3/",
+      "url": "https://xbx.place/game/mass-effect-3/"
+    },
+    {
+      "position": 69,
+      "titleId": "4D53085B",
+      "slug": "halo-reach",
+      "name": "Halo: Reach",
+      "rating": 4.5,
+      "path": "/game/halo-reach/",
+      "url": "https://xbx.place/game/halo-reach/"
+    },
+    {
+      "position": 70,
+      "titleId": "415607E6",
+      "slug": "call-of-duty-4-modern-warfare",
+      "name": "Call of Duty 4: Modern Warfare",
+      "rating": 4.5,
+      "path": "/game/call-of-duty-4-modern-warfare/",
+      "url": "https://xbx.place/game/call-of-duty-4-modern-warfare/"
+    },
+    {
+      "position": 71,
+      "titleId": "4D530877",
+      "slug": "halo-3-odst",
+      "name": "Halo 3: ODST",
+      "rating": 4.5,
+      "path": "/game/halo-3-odst/",
+      "url": "https://xbx.place/game/halo-3-odst/"
+    },
+    {
+      "position": 72,
+      "titleId": "58410954",
+      "slug": "banjo-kazooie",
+      "name": "Banjo-Kazooie",
+      "rating": 4.5,
+      "path": "/game/banjo-kazooie/",
+      "url": "https://xbx.place/game/banjo-kazooie/"
+    },
+    {
+      "position": 73,
+      "titleId": "41560914",
+      "slug": "call-of-duty-advanced-warfare",
+      "name": "Call of Duty: Advanced Warfare",
+      "rating": 4.5,
+      "path": "/game/call-of-duty-advanced-warfare/",
+      "url": "https://xbx.place/game/call-of-duty-advanced-warfare/"
+    },
+    {
+      "position": 74,
+      "titleId": "4E4D083A",
+      "slug": "dark-souls",
+      "name": "Dark Souls",
+      "rating": 4.5,
+      "path": "/game/dark-souls/",
+      "url": "https://xbx.place/game/dark-souls/"
+    },
+    {
+      "position": 75,
+      "titleId": "425307E3",
+      "slug": "dishonored",
+      "name": "Dishonored",
+      "rating": 4.5,
+      "path": "/game/dishonored/",
+      "url": "https://xbx.place/game/dishonored/"
+    },
+    {
+      "position": 76,
+      "titleId": "454108D4",
+      "slug": "left-4-dead-2",
+      "name": "Left 4 Dead 2",
+      "rating": 4.5,
+      "path": "/game/left-4-dead-2/",
+      "url": "https://xbx.place/game/left-4-dead-2/"
+    },
+    {
+      "position": 77,
+      "titleId": "454107D9",
+      "slug": "need-for-speed-most-wanted-2005",
+      "name": "Need for Speed Most Wanted (2005)",
+      "rating": 4.5,
+      "path": "/game/need-for-speed-most-wanted-2005/",
+      "url": "https://xbx.place/game/need-for-speed-most-wanted-2005/"
+    },
+    {
+      "position": 78,
+      "titleId": "434307D4",
+      "slug": "resident-evil-5",
+      "name": "Resident Evil 5",
+      "rating": 4.5,
+      "path": "/game/resident-evil-5/",
+      "url": "https://xbx.place/game/resident-evil-5/"
+    },
+    {
+      "position": 79,
+      "titleId": "425307E6",
+      "slug": "the-elder-scrolls-v-skyrim",
+      "name": "The Elder Scrolls V: Skyrim",
+      "rating": 4.5,
+      "path": "/game/the-elder-scrolls-v-skyrim/",
+      "url": "https://xbx.place/game/the-elder-scrolls-v-skyrim/"
+    },
+    {
+      "position": 80,
+      "titleId": "555308B6",
+      "slug": "tom-clancy-s-splinter-cell-blacklist",
+      "name": "Tom Clancy's Splinter Cell: Blacklist",
+      "rating": 4.5,
+      "path": "/game/tom-clancy-s-splinter-cell-blacklist/",
+      "url": "https://xbx.place/game/tom-clancy-s-splinter-cell-blacklist/"
+    },
+    {
+      "position": 81,
+      "titleId": "545407D8",
+      "slug": "bioshock",
+      "name": "Bioshock",
+      "rating": 4.5,
+      "path": "/game/bioshock/",
+      "url": "https://xbx.place/game/bioshock/"
+    },
+    {
+      "position": 82,
+      "titleId": "45410857",
+      "slug": "dead-space",
+      "name": "Dead Space",
+      "rating": 4.5,
+      "path": "/game/dead-space/",
+      "url": "https://xbx.place/game/dead-space/"
+    },
+    {
+      "position": 83,
+      "titleId": "4D530919",
+      "slug": "halo-4",
+      "name": "Halo 4",
+      "rating": 4.5,
+      "path": "/game/halo-4/",
+      "url": "https://xbx.place/game/halo-4/"
+    },
+    {
+      "position": 84,
+      "titleId": "544307D5",
+      "slug": "ninja-gaiden-ii",
+      "name": "Ninja Gaiden II",
+      "rating": 4.5,
+      "path": "/game/ninja-gaiden-ii/",
+      "url": "https://xbx.place/game/ninja-gaiden-ii/"
+    },
+    {
+      "position": 85,
+      "titleId": "43430819",
+      "slug": "resident-evil-6",
+      "name": "Resident Evil 6",
+      "rating": 4.5,
+      "path": "/game/resident-evil-6/",
+      "url": "https://xbx.place/game/resident-evil-6/"
+    },
+    {
+      "position": 86,
+      "titleId": "5553080B",
+      "slug": "tom-clancy-s-splinter-cell-conviction",
+      "name": "Tom Clancy's Splinter Cell: Conviction",
+      "rating": 4.5,
+      "path": "/game/tom-clancy-s-splinter-cell-conviction/",
+      "url": "https://xbx.place/game/tom-clancy-s-splinter-cell-conviction/"
+    },
+    {
+      "position": 87,
+      "titleId": "454108C5",
+      "slug": "brutal-legend",
+      "name": "Brütal Legend",
+      "rating": 4.5,
+      "path": "/game/brutal-legend/",
+      "url": "https://xbx.place/game/brutal-legend/"
+    },
+    {
+      "position": 88,
+      "titleId": "4B4E0809",
+      "slug": "castlevania-lords-of-shadow",
+      "name": "Castlevania: Lords of Shadow",
+      "rating": 4.5,
+      "path": "/game/castlevania-lords-of-shadow/",
+      "url": "https://xbx.place/game/castlevania-lords-of-shadow/"
+    },
+    {
+      "position": 89,
+      "titleId": "545407E5",
+      "slug": "civilization-revolution",
+      "name": "Civilization Revolution",
+      "rating": 4.5,
+      "path": "/game/civilization-revolution/",
+      "url": "https://xbx.place/game/civilization-revolution/"
+    },
+    {
+      "position": 90,
+      "titleId": "555308C2",
+      "slug": "assassin-s-creed-iv-black-flag",
+      "name": "Assassin's Creed IV: Black Flag",
+      "rating": 4.5,
+      "path": "/game/assassin-s-creed-iv-black-flag/",
+      "url": "https://xbx.place/game/assassin-s-creed-iv-black-flag/"
+    },
+    {
+      "position": 91,
+      "titleId": "4541081F",
+      "slug": "fifa-08",
+      "name": "FIFA 08",
+      "rating": 4.5,
+      "path": "/game/fifa-08/",
+      "url": "https://xbx.place/game/fifa-08/"
+    },
+    {
+      "position": 92,
+      "titleId": "5451080D",
+      "slug": "red-faction-guerrilla",
+      "name": "Red Faction: Guerrilla",
+      "rating": 4.5,
+      "path": "/game/red-faction-guerrilla/",
+      "url": "https://xbx.place/game/red-faction-guerrilla/"
+    },
+    {
+      "position": 93,
+      "titleId": "535107DD",
+      "slug": "star-ocean-the-last-hope",
+      "name": "Star Ocean: The Last Hope",
+      "rating": 4.5,
+      "path": "/game/star-ocean-the-last-hope/",
+      "url": "https://xbx.place/game/star-ocean-the-last-hope/"
+    },
+    {
+      "position": 94,
+      "titleId": "434307EC",
+      "slug": "dead-rising-2",
+      "name": "Dead Rising 2",
+      "rating": 4.5,
+      "path": "/game/dead-rising-2/",
+      "url": "https://xbx.place/game/dead-rising-2/"
+    },
+    {
+      "position": 95,
+      "titleId": "45410997",
+      "slug": "dragon-age-inquisition",
+      "name": "Dragon Age: Inquisition",
+      "rating": 4.5,
+      "path": "/game/dragon-age-inquisition/",
+      "url": "https://xbx.place/game/dragon-age-inquisition/"
+    },
+    {
+      "position": 96,
+      "titleId": "454109DB",
+      "slug": "fifa-15",
+      "name": "FIFA 15",
+      "rating": 4.5,
+      "path": "/game/fifa-15/",
+      "url": "https://xbx.place/game/fifa-15/"
+    },
+    {
+      "position": 97,
+      "titleId": "454109C3",
+      "slug": "fifa-14",
+      "name": "FIFA 14",
+      "rating": 4.5,
+      "path": "/game/fifa-14/",
+      "url": "https://xbx.place/game/fifa-14/"
+    },
+    {
+      "position": 98,
+      "titleId": "584108B7",
+      "slug": "castle-crashers",
+      "name": "Castle Crashers",
+      "rating": 4.5,
+      "path": "/game/castle-crashers/",
+      "url": "https://xbx.place/game/castle-crashers/"
+    },
+    {
+      "position": 99,
+      "titleId": "443607D8",
+      "slug": "game-of-thrones-a-telltale-games-series",
+      "name": "Game of Thrones - A Telltale Games Series",
+      "rating": 4.5,
+      "path": "/game/game-of-thrones-a-telltale-games-series/",
+      "url": "https://xbx.place/game/game-of-thrones-a-telltale-games-series/"
+    },
+    {
+      "position": 100,
+      "titleId": "55530807",
+      "slug": "tom-clancy-s-rainbow-six-vegas-2",
+      "name": "Tom Clancy's Rainbow Six Vegas 2",
+      "rating": 4.5,
+      "path": "/game/tom-clancy-s-rainbow-six-vegas-2/",
+      "url": "https://xbx.place/game/tom-clancy-s-rainbow-six-vegas-2/"
+    }
+  ]
+}

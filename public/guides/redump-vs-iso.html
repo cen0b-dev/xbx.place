@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Redump vs ISO — Xbox 360 Dump Formats Explained | xbx.place</title>
+    <meta name="description" content="Understand the difference between Redump-verified Xbox 360 dumps and raw ISO images. Learn which format to choose for Xenia or real hardware." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="canonical" href="https://xbx.place/guides/redump-vs-iso.html" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="xbx.place" />
+    <meta property="og:title" content="Redump vs ISO — Xbox 360 Dump Formats Explained | xbx.place" />
+    <meta property="og:description" content="Understand the difference between Redump-verified Xbox 360 dumps and raw ISO images. Learn which format to choose for Xenia or real hardware." />
+    <meta property="og:url" content="https://xbx.place/guides/redump-vs-iso.html" />
+    <meta property="og:image" content="https://xbx.place/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://xbx.place/og-image.png" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What is a Redump dump?","acceptedAnswer":{"@type":"Answer","text":"Redump is a preservation project that defines exact specifications for disc images. A Redump-verified dump is a bit-perfect copy of the original disc, matching a community-verified hash."}},{"@type":"Question","name":"Is a Redump dump the same as an ISO?","acceptedAnswer":{"@type":"Answer","text":"Both use the .iso file extension, but Redump dumps follow strict ripping standards. Not every .iso file is Redump-verified — some are raw rips that may be missing data or sector padding."}},{"@type":"Question","name":"Which format works best with Xenia?","acceptedAnswer":{"@type":"Answer","text":"Xenia works well with Redump-aligned ISOs and extracted XEX folders. GOD-format containers are also supported but less common for emulation."}}]}</script>
+    <style>
+      body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#101010;color:#e8e8e8;line-height:1.65}
+      main{max-width:860px;margin:0 auto;padding:48px 20px}
+      h1,h2,h3{color:#fff}
+      h1{font-size:clamp(1.5rem,4vw,2rem);line-height:1.2}
+      a{color:#5fdb5f}
+      .site-header{max-width:860px;margin:0 auto;padding:28px 20px 0}
+      .site-header a{display:inline-flex;align-items:center;gap:10px;color:#fff;text-decoration:none;font-size:1.15rem;font-weight:600}
+      .site-header img{width:32px;height:32px;object-fit:contain;display:block}
+      .lead{color:#ccc;font-size:1.02rem}
+      .cta{display:inline-block;margin:20px 0;padding:12px 24px;background:#107c10;color:#fff;text-decoration:none;border-radius:8px;font-weight:600}
+      .stats{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}
+      .stat{padding:8px 14px;border-radius:999px;background:#ffffff0a;border:1px solid #ffffff12;font-size:.85rem;color:#aaa}
+      .stat strong{color:#fff}
+      ol,ul{padding-left:20px}
+      .footer-links{margin-top:40px;padding-top:20px;border-top:1px solid #333;font-size:.9rem}
+      .footer-links a{margin-right:16px}
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <a href="/"><img src="/logo.png" width="32" height="32" alt="" /><span>xbx.place</span></a>
+    </header>
+    <main>
+      <h1>Redump vs ISO — Xbox 360 Dump Formats Explained</h1>
+      <p class="lead">
+        When downloading Xbox 360 games you'll encounter terms like "Redump", "ISO", "XEX", and
+        "GOD". This guide explains what each means and how to choose the right one.
+      </p>
+
+      <h2>What is an ISO?</h2>
+      <p>
+        An ISO is a single-file disc image — a byte-for-byte copy of a DVD or game disc. Xbox 360
+        games typically ship on a dual-layer DVD, so an Xbox 360 ISO is usually around 7–8 GB.
+        The file extension is <code>.iso</code> regardless of whether it was produced to Redump
+        standards or not.
+      </p>
+      <div class="stats">
+        <span class="stat"><strong>.iso</strong> file extension</span>
+        <span class="stat"><strong>~7–8 GB</strong> typical size</span>
+        <span class="stat"><strong>Single file</strong> — easy to manage</span>
+      </div>
+
+      <h2>What is Redump?</h2>
+      <p>
+        <a href="http://redump.org/">Redump.org</a> is a disc-preservation project that maintains
+        a database of verified hashes for optical media. A <em>Redump dump</em> is an ISO that
+        has been ripped according to Redump's strict methodology — correct sector size, full
+        security sector preservation, and a hash that matches the database entry.
+      </p>
+      <p>
+        Not every ISO you download is a Redump dump. Many older releases were ripped with tools
+        that stripped padding, skipped security sectors, or trimmed the video partition —
+        producing smaller but potentially broken files. Redump-verified dumps are generally the
+        most reliable for both emulation and hardware use.
+      </p>
+
+      <h2>XEX — Extracted Folder Format</h2>
+      <p>
+        Some releases come as an extracted folder rather than an ISO. The folder contains
+        <code>default.xex</code> (the main executable) and supporting files. Xenia can open
+        these directly. XEX rips are convenient but are not preservation-grade in the way
+        Redump ISOs are.
+      </p>
+
+      <h2>GOD — Games on Demand</h2>
+      <p>
+        GOD is Microsoft's proprietary container format for Xbox Live Marketplace downloads.
+        It packages the game content into STFS (Secure Transacted File System) containers stored
+        in a specific folder structure. GOD files can run from a USB drive on a modded console.
+        See the <a href="/guides/god-format.html">GOD format guide</a> for full details, or
+        <a href="/guides/iso-to-god-usb.html">ISO → GOD + USB install guide</a> to convert
+        a download for real hardware use.
+      </p>
+
+      <h2>Which format should I download?</h2>
+      <ul>
+        <li><strong>Xenia emulator:</strong> ISO (Redump-aligned preferred) or XEX folder.</li>
+        <li><strong>Modded Xbox 360 — disc bypass:</strong> ISO loaded via Freestyle Dash / JTAG.</li>
+        <li><strong>Modded Xbox 360 — USB install:</strong> GOD format. Convert from ISO using <a href="/guides/iso-to-god-usb.html">this guide</a>.</li>
+        <li><strong>Archiving:</strong> Redump-verified ISO — the gold standard for preservation.</li>
+      </ul>
+
+      <h2>How xbx.place labels files</h2>
+      <p>
+        Files on xbx.place are labeled by type (ISO, XEX, GOD, DLC, Update). Where source
+        information is available, Redump-aligned dumps are noted. Always check the file details
+        on the game page before downloading.
+      </p>
+
+      <h2>FAQ</h2>
+      <dl>
+        <dt>Can I convert an ISO to GOD?</dt>
+        <dd>Yes — see the <a href="/guides/iso-to-god-usb.html">ISO → GOD + USB install guide</a> for step-by-step instructions.</dd>
+        <dt>Why are some ISOs smaller than 7 GB?</dt>
+        <dd>Older rips often trimmed the video partition or stripped padding sectors, reducing file size. These are not Redump-compliant and may cause issues on some setups.</dd>
+        <dt>Does Xenia require Redump dumps?</dt>
+        <dd>No — Xenia works with most ISOs. Redump dumps are just more reliable because they are more complete copies of the original disc.</dd>
+      </dl>
+      <a class="cta" href="/">Browse Xbox 360 ROMs</a>
+      
+      <div class="footer-links">
+        <a href="/guides/">All guides</a>
+        <a href="/">Catalog</a>
+        <a href="/xbox-360-roms.html">Xbox 360 ROMs</a>
+        <a href="/xbox-360-dlc.html">DLC</a>
+        <a href="/about.html">About</a>
+      </div></main>
+  </body>
+</html>

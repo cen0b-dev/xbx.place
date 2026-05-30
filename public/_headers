@@ -1,0 +1,39 @@
+# Hashed assets from Vite build — safe to cache indefinitely
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Brand / UI images — infrequently changed, 1-week cache
+/logo.png
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+/favicon-32.png
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+/apple-touch-icon.png
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+/og-image.png
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+# Large catalog JSON — 1-hour cache, serve stale for up to 24 hours
+/master_index.json
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+/ia-file-map.json
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+/game-slugs.json
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+/top-xbox-360-games.json
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+
+# Sitemaps — updated at most daily
+/sitemap.xml
+  Cache-Control: public, max-age=86400, stale-while-revalidate=86400
+/sitemap-images.xml
+  Cache-Control: public, max-age=86400, stale-while-revalidate=86400
+/robots.txt
+  Cache-Control: public, max-age=86400
+
+# Static landing pages — 5-min cache, serve stale for 1 hour
+/*.html
+  Cache-Control: public, max-age=300, stale-while-revalidate=3600
+
+# Root SPA entry — always revalidate so the latest JS/CSS hashes are picked up
+/
+  Cache-Control: no-cache

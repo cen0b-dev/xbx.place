@@ -39,7 +39,7 @@ function escapeHtml(value: string): string {
   return el.innerHTML;
 }
 
-export function collectionShareUrl(collectionId: string): string {
+function collectionShareUrl(collectionId: string): string {
   const url = new URL(window.location.href);
   url.searchParams.delete("title");
   url.searchParams.delete("profile");

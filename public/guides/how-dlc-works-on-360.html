@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>How DLC Works on Xbox 360 — Installing Add-ons &amp; Updates | xbx.place</title>
+    <meta name="description" content="Learn how Xbox 360 DLC and title updates work on real hardware and in Xenia. Covers STFS containers, folder placement, and loading add-on content." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="canonical" href="https://xbx.place/guides/how-dlc-works-on-360.html" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="xbx.place" />
+    <meta property="og:title" content="How DLC Works on Xbox 360 — Installing Add-ons &amp; Updates | xbx.place" />
+    <meta property="og:description" content="Learn how Xbox 360 DLC and title updates work on real hardware and in Xenia. Covers STFS containers, folder placement, and loading add-on content." />
+    <meta property="og:url" content="https://xbx.place/guides/how-dlc-works-on-360.html" />
+    <meta property="og:image" content="https://xbx.place/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://xbx.place/og-image.png" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How do I install DLC on a modded Xbox 360?","acceptedAnswer":{"@type":"Answer","text":"Place the DLC STFS package inside Content/0000000000000000/<TitleID>/<ContentTypeCode>/ on your USB drive or HDD. The console will detect it automatically when you launch the game."}},{"@type":"Question","name":"How do I install DLC in Xenia?","acceptedAnswer":{"@type":"Answer","text":"In Xenia, place the DLC STFS file inside the Content folder within your Xenia data directory, mirroring the same folder structure used on a real console."}},{"@type":"Question","name":"What is a title update on Xbox 360?","acceptedAnswer":{"@type":"Answer","text":"A title update (TU) is a patch package in STFS format. It fixes bugs, adds features, or changes balance. The console applies it automatically when launching the game if it's installed."}}]}</script>
+    <style>
+      body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#101010;color:#e8e8e8;line-height:1.65}
+      main{max-width:860px;margin:0 auto;padding:48px 20px}
+      h1,h2,h3{color:#fff}
+      h1{font-size:clamp(1.5rem,4vw,2rem);line-height:1.2}
+      a{color:#5fdb5f}
+      .site-header{max-width:860px;margin:0 auto;padding:28px 20px 0}
+      .site-header a{display:inline-flex;align-items:center;gap:10px;color:#fff;text-decoration:none;font-size:1.15rem;font-weight:600}
+      .site-header img{width:32px;height:32px;object-fit:contain;display:block}
+      .lead{color:#ccc;font-size:1.02rem}
+      .cta{display:inline-block;margin:20px 0;padding:12px 24px;background:#107c10;color:#fff;text-decoration:none;border-radius:8px;font-weight:600}
+      .stats{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}
+      .stat{padding:8px 14px;border-radius:999px;background:#ffffff0a;border:1px solid #ffffff12;font-size:.85rem;color:#aaa}
+      .stat strong{color:#fff}
+      ol,ul{padding-left:20px}
+      .footer-links{margin-top:40px;padding-top:20px;border-top:1px solid #333;font-size:.9rem}
+      .footer-links a{margin-right:16px}
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <a href="/"><img src="/logo.png" width="32" height="32" alt="" /><span>xbx.place</span></a>
+    </header>
+    <main>
+      <h1>How DLC Works on Xbox 360</h1>
+      <p class="lead">
+        Xbox 360 DLC packs, title updates, and marketplace add-ons all use the same STFS
+        container format. This guide explains how they're stored, installed, and loaded —
+        on both real modded hardware and in Xenia.
+      </p>
+
+      <h2>The STFS Container</h2>
+      <p>
+        All Xbox 360 downloadable content — DLC, title updates, avatar items, themes — is
+        packaged as <strong>STFS (Secure Transacted File System)</strong> containers. They look
+        like ordinary files (usually no extension) and are placed inside a specific
+        <code>Content/</code> directory structure keyed by Title ID and content type.
+      </p>
+
+      <h2>Content Type Codes</h2>
+      <p>Each sub-folder under a Title ID represents a content type:</p>
+      <ul>
+        <li><code>00007000</code> — Full game (GOD)</li>
+        <li><code>000B0000</code> — Title update (TU / patch)</li>
+        <li><code>00000002</code> — DLC / marketplace content</li>
+        <li><code>00040000</code> — Theme</li>
+        <li><code>00008000</code> — Xbox Live Arcade game</li>
+      </ul>
+
+      <h2>Folder Structure — Real Hardware</h2>
+      <pre><code>USB Drive (FAT32) or HDD:
+Content/
+  0000000000000000/     ← offline / no-licence account
+    4D5307E6/           ← Title ID (e.g. Halo 3)
+      000B0000/         ← Title update
+        &lt;TU package&gt;
+      00000002/         ← DLC
+        &lt;DLC package 1&gt;
+        &lt;DLC package 2&gt;</code></pre>
+      <p>
+        The console scans this structure on startup and when a game is launched. Updates are
+        applied automatically; DLC is registered and appears in-game menus.
+      </p>
+
+      <h2>Installing DLC on a Modded Console</h2>
+      <ol>
+        <li>Download the DLC STFS package from <a href="/">xbx.place</a> (open the game page and look for DLC entries).</li>
+        <li>Find the Title ID for the game — visible on the xbx.place game page or in the file metadata.</li>
+        <li>On your USB drive or HDD, create the path:<br><code>Content/0000000000000000/&lt;TitleID&gt;/00000002/</code></li>
+        <li>Place the DLC file (no extension) inside that folder.</li>
+        <li>Safely eject and plug the drive into your modded Xbox 360.</li>
+        <li>Launch the game — DLC should appear automatically in the in-game store or content menu.</li>
+      </ol>
+
+      <h2>Installing Title Updates on a Modded Console</h2>
+      <ol>
+        <li>Download the title update package from xbx.place.</li>
+        <li>Create the path: <code>Content/0000000000000000/&lt;TitleID&gt;/000B0000/</code></li>
+        <li>Place the update file inside that folder.</li>
+        <li>Launch the game — the update is applied automatically before the title loads.</li>
+      </ol>
+      <p>
+        <strong>Tip:</strong> Only one title update can be active at a time per title. If you place
+        multiple TU files, the console uses the one with the highest version number.
+      </p>
+      <div class="stats">
+        <span class="stat"><strong>000B0000</strong> title updates</span>
+        <span class="stat"><strong>00000002</strong> DLC packages</span>
+        <span class="stat"><strong>One TU active</strong> at a time</span>
+      </div>
+
+      <h2>Installing DLC in Xenia</h2>
+      <p>
+        Xenia uses the same <code>Content/</code> folder structure. By default, look for
+        (or create) a <code>content/</code> folder inside the Xenia directory:
+      </p>
+      <pre><code>xenia/
+  content/
+    &lt;TitleID&gt;/
+      00000002/
+        &lt;DLC file&gt;
+      000B0000/
+        &lt;TU file&gt;</code></pre>
+      <p>
+        Restart Xenia or relaunch the game after placing files. Not all DLC is compatible with
+        every Xenia build — check the Xenia compatibility notes for that title.
+      </p>
+
+      <h2>Finding DLC on xbx.place</h2>
+      <p>
+        Every game page on xbx.place lists linked DLC and title updates below the main download.
+        You can also browse the <a href="/xbox-360-dlc.html">DLC catalog</a> to search across
+        all add-on content. Each DLC entry shows the content type, file size, and a download link.
+      </p>
+
+      <h2>FAQ</h2>
+      <dl>
+        <dt>Does DLC require an Xbox Live account on a modded console?</dt>
+        <dd>Using the <code>0000000000000000</code> account folder bypasses licence checks, so no Xbox Live account is required on a JTAG/RGH console.</dd>
+        <dt>Can I use DLC with a disc copy of a game?</dt>
+        <dd>Yes — as long as the Title ID matches, DLC stored on the USB or HDD will be detected regardless of whether the game itself is a disc or a GOD install.</dd>
+        <dt>Why isn't my DLC showing up in-game?</dt>
+        <dd>Double-check the folder path and Title ID. Some DLC requires the base game to be at a specific title update version. Installing the correct TU first usually fixes this.</dd>
+      </dl>
+      <a class="cta" href="/xbox-360-dlc.html">Browse DLC catalog</a>
+      
+      <div class="footer-links">
+        <a href="/guides/">All guides</a>
+        <a href="/">Catalog</a>
+        <a href="/xbox-360-roms.html">Xbox 360 ROMs</a>
+        <a href="/xbox-360-dlc.html">DLC</a>
+        <a href="/about.html">About</a>
+      </div></main>
+  </body>
+</html>

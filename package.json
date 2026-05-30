@@ -16,6 +16,7 @@
     "build:seo-pages": "node scripts/generate-seo-pages.mjs",
     "build:sitemap": "node scripts/generate-sitemap.mjs",
     "build:seo": "node scripts/build-seo.mjs",
+    "build:top-games": "node scripts/generate-top-games.mjs",
     "build:data": "npm run build:x360db-catalog && npm run build:seo",
     "build": "npm run build:favicons && npm run build:data && tsc --noEmit && VITE_SEO_BUILT=1 vite build",
     "preview": "vite preview",

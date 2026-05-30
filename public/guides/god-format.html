@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Xbox 360 GOD Format Explained — Games on Demand | xbx.place</title>
+    <meta name="description" content="What the Xbox 360 GOD (Games on Demand) format is, how STFS containers work, and when to use GOD files on a modded console or Xenia." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="canonical" href="https://xbx.place/guides/god-format.html" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="xbx.place" />
+    <meta property="og:title" content="Xbox 360 GOD Format Explained — Games on Demand | xbx.place" />
+    <meta property="og:description" content="What the Xbox 360 GOD (Games on Demand) format is, how STFS containers work, and when to use GOD files on a modded console or Xenia." />
+    <meta property="og:url" content="https://xbx.place/guides/god-format.html" />
+    <meta property="og:image" content="https://xbx.place/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://xbx.place/og-image.png" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What is Xbox 360 GOD format?","acceptedAnswer":{"@type":"Answer","text":"GOD stands for Games on Demand — Microsoft's format for digitally distributed Xbox 360 games. Files are stored in STFS containers inside a specific folder structure on the hard drive or USB."}},{"@type":"Question","name":"Can GOD files run on a modded Xbox 360?","acceptedAnswer":{"@type":"Answer","text":"Yes. On a JTAG/RGH modded console, GOD packages can be placed on a USB drive or internal HDD and launched directly from dashboards like Freestyle Dash or Aurora."}},{"@type":"Question","name":"Do GOD files work in Xenia?","acceptedAnswer":{"@type":"Answer","text":"Xenia has partial GOD support. ISO or XEX formats are generally more reliable for emulation."}}]}</script>
+    <style>
+      body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#101010;color:#e8e8e8;line-height:1.65}
+      main{max-width:860px;margin:0 auto;padding:48px 20px}
+      h1,h2,h3{color:#fff}
+      h1{font-size:clamp(1.5rem,4vw,2rem);line-height:1.2}
+      a{color:#5fdb5f}
+      .site-header{max-width:860px;margin:0 auto;padding:28px 20px 0}
+      .site-header a{display:inline-flex;align-items:center;gap:10px;color:#fff;text-decoration:none;font-size:1.15rem;font-weight:600}
+      .site-header img{width:32px;height:32px;object-fit:contain;display:block}
+      .lead{color:#ccc;font-size:1.02rem}
+      .cta{display:inline-block;margin:20px 0;padding:12px 24px;background:#107c10;color:#fff;text-decoration:none;border-radius:8px;font-weight:600}
+      .stats{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}
+      .stat{padding:8px 14px;border-radius:999px;background:#ffffff0a;border:1px solid #ffffff12;font-size:.85rem;color:#aaa}
+      .stat strong{color:#fff}
+      ol,ul{padding-left:20px}
+      .footer-links{margin-top:40px;padding-top:20px;border-top:1px solid #333;font-size:.9rem}
+      .footer-links a{margin-right:16px}
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <a href="/"><img src="/logo.png" width="32" height="32" alt="" /><span>xbx.place</span></a>
+    </header>
+    <main>
+      <h1>Xbox 360 GOD Format Explained</h1>
+      <p class="lead">
+        GOD — Games on Demand — is the format Xbox 360 used for digitally distributed games
+        purchased through Xbox Live Marketplace. Understanding GOD is essential if you want to
+        run games from a USB drive on a modded console.
+      </p>
+
+      <h2>What is GOD?</h2>
+      <p>
+        When Microsoft sold digital Xbox 360 games, they were packaged using the
+        <strong>STFS (Secure Transacted File System)</strong> container format. A GOD package
+        is one or more STFS <em>Content</em> packages — large binary files with no extension —
+        stored in a specific directory hierarchy.
+      </p>
+
+      <h2>Folder Structure</h2>
+      <p>A GOD title on a USB drive or HDD looks like this:</p>
+      <pre><code>Content/
+  0000000000000000/
+    &lt;TitleID&gt;/
+      00007000/
+        &lt;ContentHash&gt;   ← main game data (no file extension)
+        &lt;ContentHash&gt;   ← additional data parts (if split)</code></pre>
+      <p>
+        The <code>0000000000000000</code> folder is the "offline" account container used for
+        GOD packages that don't require a licence check. The <strong>Title ID</strong> is an
+        8-character hex value unique to each game (e.g. <code>4D5307E6</code> for Halo 3).
+        The <code>00007000</code> subfolder indicates the content type — full game.
+      </p>
+      <div class="stats">
+        <span class="stat"><strong>STFS</strong> container format</span>
+        <span class="stat"><strong>00007000</strong> content type for full games</span>
+        <span class="stat"><strong>No file extension</strong> on data files</span>
+      </div>
+
+      <h2>How Content is Split</h2>
+      <p>
+        Games larger than ~4 GB are split across multiple STFS files in the same folder —
+        the console reassembles them at runtime. Tools that convert ISO → GOD handle the
+        splitting automatically.
+      </p>
+
+      <h2>GOD vs ISO — Use Cases</h2>
+      <ul>
+        <li><strong>GOD on modded console:</strong> Place the <code>Content/</code> folder on a USB drive formatted FAT32 (or the internal HDD), then launch from Freestyle Dash or Aurora.</li>
+        <li><strong>GOD on Xenia:</strong> Partial support — Xenia can open some GOD packages but may refuse others. ISO or XEX is safer for emulation.</li>
+        <li><strong>ISO ripped from disc:</strong> Better for emulation; must be converted if you want to run from USB on real hardware.</li>
+      </ul>
+
+      <h2>DLC and Title Updates as STFS</h2>
+      <p>
+        DLC packs and title updates use the same STFS container format as GOD but with
+        different content-type codes. They live in the same <code>Content/</code> tree under
+        their respective title IDs. See the <a href="/guides/how-dlc-works-on-360.html">DLC guide</a>
+        for placement details.
+      </p>
+
+      <h2>Converting ISO to GOD</h2>
+      <p>
+        To play a downloaded ISO on a real modded Xbox 360 via USB, you need to convert it to
+        GOD format first. Follow the full walkthrough in our
+        <a href="/guides/iso-to-god-usb.html">ISO → GOD + USB install guide</a>.
+      </p>
+
+      <h2>FAQ</h2>
+      <dl>
+        <dt>Does GOD require an Xbox Live account?</dt>
+        <dd>Not on a JTAG/RGH console — placing files under the <code>0000000000000000</code> account folder bypasses licence checks.</dd>
+        <dt>Can I run GOD from a USB hub or does it have to be directly plugged in?</dt>
+        <dd>Direct connection is most reliable. Some USB hubs work but power delivery and read speed can cause issues with large games.</dd>
+        <dt>What file system should the USB drive use?</dt>
+        <dd>FAT32 is the standard for Xbox 360 USB storage. Drives larger than 32 GB can still be formatted FAT32 using third-party tools.</dd>
+      </dl>
+      <a class="cta" href="/">Browse Xbox 360 ROMs</a>
+      
+      <div class="footer-links">
+        <a href="/guides/">All guides</a>
+        <a href="/">Catalog</a>
+        <a href="/xbox-360-roms.html">Xbox 360 ROMs</a>
+        <a href="/xbox-360-dlc.html">DLC</a>
+        <a href="/about.html">About</a>
+      </div></main>
+  </body>
+</html>

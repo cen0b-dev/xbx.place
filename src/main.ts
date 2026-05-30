@@ -101,7 +101,7 @@ import {
 import { observeReveal, observeRevealChildren, observeRevealFirstRow } from "./reveal";
 import type { DownloadEntry, TitleEntry } from "./types";
 
-type Category = "Game" | "DLC" | "Collections";
+type Category = "Game" | "DLC" | "Collections" | "Guides";
 
 type Settings = {
   th: string;
@@ -400,6 +400,7 @@ function renderShell(): void {
   const dmcaHref = `${BASE_URL}dmca.html`;
   const romsHref = `${BASE_URL}xbox-360-roms.html`;
   const dlcHref = `${BASE_URL}xbox-360-dlc.html`;
+  const guidesHref = `${BASE_URL}guides/`;
   const xeniaGuideHref = `${BASE_URL}guides/xenia-xbox-360-roms.html`;
   const pressHref = `${BASE_URL}press.html`;
   const genreFooterLinks = GENRE_FILTERS.slice(0, 6)
@@ -420,6 +421,7 @@ function renderShell(): void {
           <div class="pivot active" id="p-Game">GAMES</div>
           <div class="pivot" id="p-DLC">ADDONS & DLC</div>
           <div class="pivot" id="p-Collections">COLLECTIONS</div>
+          <div class="pivot" id="p-Guides">GUIDES</div>
         </div>
         <div class="nav-search-group">
           <div class="nav-search">
@@ -564,6 +566,46 @@ function renderShell(): void {
           </div>
           <div id="collectionsDiscoverStatus" class="collections-discover-status hidden" role="status"></div>
           <div id="collectionsDiscoverGrid" class="collections-discover-grid"></div>
+        </section>
+        <section class="browse-section browse-section--guides guides-only hidden" id="guidesSection">
+          <div class="browse-section-head">
+            <div class="browse-section-title-block">
+              <h2 class="game-section-title">Guides</h2>
+              <p class="browse-section-sub">Setup, formats, and modding — everything you need to get playing</p>
+            </div>
+          </div>
+          <div class="guides-grid">
+            <a class="guide-card" href="/guides/xenia-xbox-360-roms.html">
+              <span class="guide-card-tag">Emulation</span>
+              <div class="guide-card-title">How to Use Xenia</div>
+              <div class="guide-card-desc">Download and load Xbox 360 ROMs in the Xenia emulator on Windows or Linux.</div>
+              <span class="guide-card-cta">Read guide →</span>
+            </a>
+            <a class="guide-card" href="/guides/redump-vs-iso.html">
+              <span class="guide-card-tag">Formats</span>
+              <div class="guide-card-title">Redump vs ISO</div>
+              <div class="guide-card-desc">What Redump-verified dumps are, how they differ from raw ISOs, and which to choose.</div>
+              <span class="guide-card-cta">Read guide →</span>
+            </a>
+            <a class="guide-card" href="/guides/god-format.html">
+              <span class="guide-card-tag">Formats</span>
+              <div class="guide-card-title">GOD Format Explained</div>
+              <div class="guide-card-desc">How Microsoft's Games on Demand STFS containers work and when to use them.</div>
+              <span class="guide-card-cta">Read guide →</span>
+            </a>
+            <a class="guide-card" href="/guides/how-dlc-works-on-360.html">
+              <span class="guide-card-tag">DLC</span>
+              <div class="guide-card-title">How DLC Works on Xbox 360</div>
+              <div class="guide-card-desc">Installing and managing DLC and title updates on real hardware and in Xenia.</div>
+              <span class="guide-card-cta">Read guide →</span>
+            </a>
+            <a class="guide-card" href="/guides/iso-to-god-usb.html">
+              <span class="guide-card-tag">Modding</span>
+              <div class="guide-card-title">ISO → GOD + USB Install</div>
+              <div class="guide-card-desc">Convert an ISO to GOD format and install it to a USB drive for a JTAG or RGH console.</div>
+              <span class="guide-card-cta">Read guide →</span>
+            </a>
+          </div>
         </section>
       </div>
     </div>
@@ -884,7 +926,7 @@ function renderShell(): void {
       </div>
       <div class="footer-nav">
         <div class="footer-links">
-          <a href="${aboutHref}">About</a><a href="${romsHref}">Xbox 360 ROMs</a><a href="${dlcHref}">DLC</a><a href="${xeniaGuideHref}">Xenia guide</a><a href="${pressHref}">Press</a>${discordFooterLinkMarkup()}<a href="${dmcaHref}">DMCA</a>
+          <a href="${aboutHref}">About</a><a href="${romsHref}">Xbox 360 ROMs</a><a href="${dlcHref}">DLC</a><a href="${guidesHref}">Guides</a><a href="${pressHref}">Press</a>${discordFooterLinkMarkup()}<a href="${dmcaHref}">DMCA</a>
         </div>
         <div class="footer-genres">${genreFooterLinks}</div>
       </div>
@@ -1511,8 +1553,10 @@ function updateDlcPivotChrome(): void {
 function updateBrowseModeChrome(): void {
   const isDlc = category === "DLC";
   const isCollections = category === "Collections";
+  const isGuides = category === "Guides";
   document.body.classList.toggle("browse-mode-dlc", isDlc);
   document.body.classList.toggle("browse-mode-collections", isCollections);
+  document.body.classList.toggle("browse-mode-guides", isGuides);
 
   const eyebrow = document.getElementById("siteHeroEyebrow");
   const title = document.getElementById("siteHeroTitle");
@@ -1523,23 +1567,27 @@ function updateBrowseModeChrome(): void {
   const featuredSubtitle = document.getElementById("featuredSubtitle");
 
   if (eyebrow) {
-    eyebrow.textContent = isCollections ? "Community" : isDlc ? "Add-ons & Updates" : "Xbox 360 Archive";
+    eyebrow.textContent = isCollections ? "Community" : isDlc ? "Add-ons & Updates" : isGuides ? "Learn" : "Xbox 360 Archive";
   }
   if (title) {
     title.innerHTML = isCollections
       ? 'Curated <span>collections</span> from players'
       : isDlc
         ? 'Download <span>DLC</span> and update packages'
-        : 'Games, <span>DLC</span>, and metadata in one catalog';
+        : isGuides
+          ? 'Setup, formats, <span>and modding</span>'
+          : 'Games, <span>DLC</span>, and metadata in one catalog';
   }
   if (lead) {
     lead.textContent = isCollections
       ? "Browse public game lists shared by xbx.place users — favorites, backlogs, themed sets, and more."
       : isDlc
         ? "Browse titles with downloadable add-on packs and title updates — open a tile to view and download files."
-        : "Search thousands of titles with cover art, ratings, and downloadable archives — built for preservation and easy rediscovery.";
+        : isGuides
+          ? "Step-by-step guides on emulation, disc formats, DLC installation, and playing games on a modded console."
+          : "Search thousands of titles with cover art, ratings, and downloadable archives — built for preservation and easy rediscovery.";
   }
-  if (gamesStat) gamesStat.classList.toggle("site-hero-stat--muted", isDlc || isCollections);
+  if (gamesStat) gamesStat.classList.toggle("site-hero-stat--muted", isDlc || isCollections || isGuides);
   if (addonsStat) addonsStat.classList.toggle("site-hero-stat--emphasis", isDlc);
   if (featuredTitle) featuredTitle.textContent = isDlc ? "Has Add-ons" : "Top Rated";
   if (featuredSubtitle) {
@@ -1772,6 +1820,11 @@ function updateSearchPlaceholder(): void {
     input.setAttribute("aria-label", "Search public collections or gamertags");
     return;
   }
+  if (category === "Guides") {
+    input.placeholder = "Search games, DLC, or publishers…";
+    input.setAttribute("aria-label", "Search games");
+    return;
+  }
   const gameCount = db.filter((g) => isGameEntry(g) && !/demo|beta|trial/i.test(g.name)).length;
   const addonCount = db.filter((g) => isAddonEntry(g) && !/demo|beta|trial/i.test(g.name)).length;
   if (category === "DLC") {
@@ -1972,12 +2025,15 @@ function updateBrowseSectionChrome(): void {
     node.classList.toggle("hidden", category !== "DLC");
   });
   document.querySelectorAll<HTMLElement>(".catalog-only").forEach((node) => {
-    node.classList.toggle("hidden", category === "Collections");
+    node.classList.toggle("hidden", category === "Collections" || category === "Guides");
   });
   document.querySelectorAll<HTMLElement>(".collections-only").forEach((node) => {
     node.classList.toggle("hidden", category !== "Collections");
   });
-  document.getElementById("browseFilterToggle")?.classList.toggle("hidden", category === "Collections");
+  document.querySelectorAll<HTMLElement>(".guides-only").forEach((node) => {
+    node.classList.toggle("hidden", category !== "Guides");
+  });
+  document.getElementById("browseFilterToggle")?.classList.toggle("hidden", category === "Collections" || category === "Guides");
 }
 
 function updateGenreRailOverflow(): void {
@@ -2297,6 +2353,7 @@ function switchCategory(next: Category): void {
   document.getElementById("p-Game")?.classList.toggle("active", next === "Game");
   document.getElementById("p-DLC")?.classList.toggle("active", next === "DLC");
   document.getElementById("p-Collections")?.classList.toggle("active", next === "Collections");
+  document.getElementById("p-Guides")?.classList.toggle("active", next === "Guides");
   updateBrowseModeChrome();
   syncSortDropdownForCategory();
   syncCatalogGridLayout();
@@ -2308,7 +2365,7 @@ function switchCategory(next: Category): void {
   if (next === "Collections") {
     void refreshDiscoverCollections(true);
     applyCollectionsFilters();
-  } else {
+  } else if (next !== "Guides") {
     applyFilters();
   }
   updateFilterDrawerChrome();
@@ -2387,6 +2444,7 @@ function bindStaticEvents(): void {
   document.getElementById("p-Game")?.addEventListener("click", () => switchCategory("Game"));
   document.getElementById("p-DLC")?.addEventListener("click", () => switchCategory("DLC"));
   document.getElementById("p-Collections")?.addEventListener("click", () => switchCategory("Collections"));
+  document.getElementById("p-Guides")?.addEventListener("click", () => switchCategory("Guides"));
   window.addEventListener("xbx-collections-changed", () => {
     discoverCollectionsLoaded = false;
     if (category === "Collections") {

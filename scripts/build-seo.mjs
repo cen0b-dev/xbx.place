@@ -5,6 +5,7 @@ const ROOT = path.resolve(import.meta.dirname, "..");
 const steps = [
   "generate-seo-pages.mjs",
   "generate-redirects.mjs",
+  "generate-top-games.mjs",
   "generate-landing-pages.mjs",
   "generate-sitemap.mjs",
   "generate-image-sitemap.mjs",

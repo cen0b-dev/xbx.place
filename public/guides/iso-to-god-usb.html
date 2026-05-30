@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>How to Convert ISO to GOD &amp; Install to USB for Xbox 360 | xbx.place</title>
+    <meta name="description" content="Step-by-step guide to converting an Xbox 360 ISO to GOD format and installing it to a USB drive for use on a JTAG or RGH modded console." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="canonical" href="https://xbx.place/guides/iso-to-god-usb.html" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="xbx.place" />
+    <meta property="og:title" content="How to Convert ISO to GOD &amp; Install to USB for Xbox 360 | xbx.place" />
+    <meta property="og:description" content="Step-by-step guide to converting an Xbox 360 ISO to GOD format and installing it to a USB drive for use on a JTAG or RGH modded console." />
+    <meta property="og:url" content="https://xbx.place/guides/iso-to-god-usb.html" />
+    <meta property="og:image" content="https://xbx.place/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://xbx.place/og-image.png" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How do I convert an Xbox 360 ISO to GOD format?","acceptedAnswer":{"@type":"Answer","text":"Use ISO2GOD (Windows) or a compatible tool to convert the ISO into STFS containers, then place them in Content/0000000000000000/<TitleID>/00007000/ on your USB drive."}},{"@type":"Question","name":"What USB format does Xbox 360 use?","acceptedAnswer":{"@type":"Answer","text":"Xbox 360 requires USB drives formatted as FAT32. Use a tool like Rufus or fat32format for drives larger than 32 GB."}},{"@type":"Question","name":"Does the USB drive need to be configured in the Xbox 360 dashboard?","acceptedAnswer":{"@type":"Answer","text":"Yes — plug in the USB drive and go to System > Storage > USB Storage Device and select 'Configure Now' to let the console allocate storage space."}}]}</script>
+    <style>
+      body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#101010;color:#e8e8e8;line-height:1.65}
+      main{max-width:860px;margin:0 auto;padding:48px 20px}
+      h1,h2,h3{color:#fff}
+      h1{font-size:clamp(1.5rem,4vw,2rem);line-height:1.2}
+      a{color:#5fdb5f}
+      .site-header{max-width:860px;margin:0 auto;padding:28px 20px 0}
+      .site-header a{display:inline-flex;align-items:center;gap:10px;color:#fff;text-decoration:none;font-size:1.15rem;font-weight:600}
+      .site-header img{width:32px;height:32px;object-fit:contain;display:block}
+      .lead{color:#ccc;font-size:1.02rem}
+      .cta{display:inline-block;margin:20px 0;padding:12px 24px;background:#107c10;color:#fff;text-decoration:none;border-radius:8px;font-weight:600}
+      .stats{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}
+      .stat{padding:8px 14px;border-radius:999px;background:#ffffff0a;border:1px solid #ffffff12;font-size:.85rem;color:#aaa}
+      .stat strong{color:#fff}
+      ol,ul{padding-left:20px}
+      .footer-links{margin-top:40px;padding-top:20px;border-top:1px solid #333;font-size:.9rem}
+      .footer-links a{margin-right:16px}
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <a href="/"><img src="/logo.png" width="32" height="32" alt="" /><span>xbx.place</span></a>
+    </header>
+    <main>
+      <h1>How to Convert ISO to GOD & Install to USB</h1>
+      <p class="lead">
+        Downloaded an Xbox 360 ISO and want to play it on your modded console from a USB drive?
+        This guide covers everything — from formatting the drive to launching the game from
+        Freestyle Dash or Aurora.
+      </p>
+      <div class="stats">
+        <span class="stat"><strong>JTAG / RGH</strong> required</span>
+        <span class="stat"><strong>FAT32</strong> USB format</span>
+        <span class="stat"><strong>ISO2GOD</strong> conversion tool</span>
+      </div>
+
+      <h2>What You Need</h2>
+      <ul>
+        <li>A JTAG or RGH modded Xbox 360</li>
+        <li>A USB drive (8 GB minimum; 32 GB+ recommended for multiple games)</li>
+        <li>An Xbox 360 ISO — download from the <a href="/">xbx.place catalog</a></li>
+        <li><strong>ISO2GOD</strong> — free Windows tool for ISO → GOD conversion</li>
+        <li><strong>Freestyle Dash</strong> or <strong>Aurora</strong> installed on the console</li>
+      </ul>
+
+      <h2>Step 1 — Format the USB Drive as FAT32</h2>
+      <p>
+        Xbox 360 only reads USB storage formatted as <strong>FAT32</strong>. Windows can only
+        format FAT32 natively up to 32 GB — for larger drives use a third-party tool.
+      </p>
+      <ol>
+        <li>Download <strong>Rufus</strong> (free) or <strong>fat32format</strong>.</li>
+        <li>Select your USB drive, choose FAT32, and format.</li>
+        <li>No special label or partition scheme is required — just plain FAT32.</li>
+      </ol>
+      <p>
+        <strong>Note:</strong> Xbox 360 will only use up to 32 GB of a USB drive's capacity
+        regardless of the actual drive size, split across two 16 GB partitions internally.
+        All GOD content still lives in the visible FAT32 partition you manage on your PC.
+      </p>
+
+      <h2>Step 2 — Configure the USB Drive on Xbox 360</h2>
+      <ol>
+        <li>Plug the formatted USB drive into your Xbox 360 while it is on.</li>
+        <li>Go to <strong>My Xbox → System Settings → Storage</strong>.</li>
+        <li>Select the USB Storage Device and choose <strong>Configure Now</strong>.</li>
+        <li>The console formats a small 512 MB system partition on the drive. The rest remains accessible from your PC.</li>
+      </ol>
+      <p>This step is optional for GOD content launched via Freestyle Dash / Aurora — many setups skip it and read directly from FAT32.</p>
+
+      <h2>Step 3 — Download the ISO</h2>
+      <p>
+        Find the game on <a href="/">xbx.place</a>, open the game page, and download the ISO.
+        Extract any archive (<code>.zip</code>, <code>.7z</code>, <code>.rar</code>) with
+        <a href="https://www.7-zip.org/">7-Zip</a> to get the raw <code>.iso</code> file.
+      </p>
+      <p>
+        Not sure which format to grab? See <a href="/guides/redump-vs-iso.html">Redump vs ISO</a>
+        for an explanation of the different dump types available.
+      </p>
+
+      <h2>Step 4 — Convert ISO to GOD with ISO2GOD</h2>
+      <ol>
+        <li>Download and run <strong>ISO2GOD</strong>.</li>
+        <li>Click the folder icon next to <em>Input</em> and select your <code>.iso</code> file.</li>
+        <li>Set the <em>Output</em> folder to somewhere on your PC (e.g. a temp folder).</li>
+        <li>Leave <em>Title ID</em> and <em>Media ID</em> on <strong>Auto</strong> — ISO2GOD reads these from the ISO header.</li>
+        <li>Set <em>Base folder</em> to <code>0000000000000000</code> (the offline account ID used to bypass licence checks on modded consoles).</li>
+        <li>Click <strong>Convert</strong> and wait. Large games may take several minutes.</li>
+      </ol>
+      <p>
+        ISO2GOD will produce a folder structure like:
+      </p>
+      <pre><code>Output/
+  0000000000000000/
+    &lt;TitleID&gt;/
+      00007000/
+        &lt;data file 1&gt;
+        &lt;data file 2&gt;   ← only if game is split</code></pre>
+
+      <h2>Step 5 — Copy to USB Drive</h2>
+      <ol>
+        <li>On your USB drive, create a folder named <code>Content</code> at the root (if it doesn't exist).</li>
+        <li>Copy the <code>0000000000000000</code> folder (and everything inside it) into <code>Content/</code>.</li>
+        <li>Final path on the USB drive should be:<br><code>Content/0000000000000000/&lt;TitleID&gt;/00007000/&lt;files&gt;</code></li>
+      </ol>
+      <p>Safely eject the drive from your PC after the copy completes.</p>
+
+      <h2>Step 6 — Launch on the Modded Console</h2>
+      <ol>
+        <li>Plug the USB drive into your Xbox 360.</li>
+        <li>Boot into <strong>Freestyle Dash</strong> or <strong>Aurora</strong>.</li>
+        <li>Add the USB drive as a game scan path if you haven't already (<em>Settings → File Manager → Add Path</em> in FSD).</li>
+        <li>Scan for games — the title should appear with cover art if your dashboard has cover scraping enabled.</li>
+        <li>Select and launch the game.</li>
+      </ol>
+
+      <h2>Adding DLC and Title Updates</h2>
+      <p>
+        Once the game is installed, you can add DLC and title updates to the same
+        <code>Content/</code> tree on the USB drive. See the
+        <a href="/guides/how-dlc-works-on-360.html">How DLC Works on Xbox 360</a> guide for
+        folder paths and placement details.
+      </p>
+
+      <h2>Troubleshooting</h2>
+      <dl>
+        <dt>The game appears in Freestyle Dash but fails to launch</dt>
+        <dd>Usually a bad conversion or a corrupt ISO. Re-download the ISO and re-run ISO2GOD. Check that the Title ID folder name matches the game's actual Title ID.</dd>
+        <dt>ISO2GOD says "invalid ISO" or can't read the file</dt>
+        <dd>The ISO may be trimmed or non-standard. Try a different source — Redump-aligned dumps are most reliable. See <a href="/guides/redump-vs-iso.html">Redump vs ISO</a>.</dd>
+        <dt>USB drive not detected by the console</dt>
+        <dd>Reformat as FAT32. Some drives require Y-cables or a powered hub for sufficient current. Try a different USB port on the console.</dd>
+        <dt>Game launches but freezes or shows artifacts</dt>
+        <dd>Install the latest title update for that game. Download it from the game's xbx.place page and place it at <code>Content/0000000000000000/&lt;TitleID&gt;/000B0000/</code>.</dd>
+      </dl>
+      <a class="cta" href="/">Browse Xbox 360 ROMs</a>
+      
+      <div class="footer-links">
+        <a href="/guides/">All guides</a>
+        <a href="/">Catalog</a>
+        <a href="/xbox-360-roms.html">Xbox 360 ROMs</a>
+        <a href="/xbox-360-dlc.html">DLC</a>
+        <a href="/about.html">About</a>
+      </div></main>
+  </body>
+</html>

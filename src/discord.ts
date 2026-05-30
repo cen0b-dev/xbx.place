@@ -1,9 +1,5 @@
 export const DISCORD_INVITE_URL = "https://discord.gg/PVAxX92T";
 
-export function discordInviteHref(): string {
-  return DISCORD_INVITE_URL;
-}
-
 export function discordPromoStripMarkup(): string {
   return `
     <div class="discord-promo-strip">

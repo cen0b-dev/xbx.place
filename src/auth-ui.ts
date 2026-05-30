@@ -625,7 +625,7 @@ export function syncHeaderAccountPlacement(): void {
   if (menu && menu.parentElement !== slot) slot.appendChild(menu);
 }
 
-export function updateAuthControl(user: User | null): void {
+function updateAuthControl(user: User | null): void {
   const btn = document.getElementById("auth-control") as HTMLButtonElement | null;
   if (!btn) return;
 
