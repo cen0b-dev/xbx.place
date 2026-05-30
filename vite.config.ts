@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 
@@ -6,21 +7,35 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 // Inject Supabase URL + anon key into public/status/index.html placeholders.
 // Both values are publishable — they're already baked into the main JS bundle.
 // ---------------------------------------------------------------------------
-function injectStatusConfig(supabaseUrl: string, supabaseKey: string): Plugin {
+function injectSiteMeta(html: string, env: Record<string, string>): string {
+  const googleToken = env.VITE_GOOGLE_SITE_VERIFICATION?.trim() ?? "";
+  const googleMeta = googleToken
+    ? `<meta name="google-site-verification" content="${googleToken}" />`
+    : "";
+  return html.replace("<!-- %%GOOGLE_SITE_VERIFICATION%% -->", googleMeta);
+}
+
+function injectPublicConfig(supabaseUrl: string, supabaseKey: string, env: Record<string, string>): Plugin {
   function transform(html: string) {
-    return html
-      .replace("%%SUPABASE_URL%%", supabaseUrl)
-      .replace("%%SUPABASE_ANON_KEY%%", supabaseKey);
+    return injectSiteMeta(
+      html
+        .replace("%%SUPABASE_URL%%", supabaseUrl)
+        .replace("%%SUPABASE_ANON_KEY%%", supabaseKey),
+      env
+    );
   }
 
+  const injectedPages = ["public/status/index.html", "public/test/index.html"];
+
   return {
-    name: "inject-status-config",
+    name: "inject-public-config",
 
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const url = req.url?.split("?")[0];
-        if (url !== "/status/index.html") return next();
-        const file = join(__dirname, "public/status/index.html");
+        const rel = injectedPages.find((p) => url === `/${p.replace("public/", "")}`);
+        if (!rel) return next();
+        const file = join(__dirname, rel);
         if (!existsSync(file)) return next();
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.end(transform(readFileSync(file, "utf8")));
@@ -28,9 +43,11 @@ function injectStatusConfig(supabaseUrl: string, supabaseKey: string): Plugin {
     },
 
     closeBundle() {
-      const out = join(__dirname, "dist/status/index.html");
-      if (existsSync(out)) {
-        writeFileSync(out, transform(readFileSync(out, "utf8")), "utf8");
+      for (const rel of injectedPages) {
+        const out = join(__dirname, "dist", rel.replace("public/", ""));
+        if (existsSync(out)) {
+          writeFileSync(out, transform(readFileSync(out, "utf8")), "utf8");
+        }
       }
     },
   };
@@ -45,16 +62,27 @@ function servePublicSubdirIndex(): Plugin {
     "/status/": "/status/index.html",
     "/workers":  "/workers/index.html",
     "/workers/": "/workers/index.html",
+    "/test":  "/test/index.html",
+    "/test/": "/test/index.html",
   };
+
+  function rewriteGenreOrGame(pathname: string): string | null {
+    const genreMatch = /^\/genre\/([^/]+)\/?$/.exec(pathname);
+    if (genreMatch) return `/genre/${genreMatch[1]}/index.html`;
+    const gameMatch = /^\/game\/([^/]+)\/?$/.exec(pathname);
+    if (gameMatch) return `/game/${gameMatch[1]}/index.html`;
+    return null;
+  }
+
   return {
     name: "serve-public-subdir-index",
     configureServer(server) {
       server.middlewares.use((req, _res, next) => {
         const raw = req.url ?? "";
         const q = raw.indexOf("?");
-        const path = q === -1 ? raw : raw.slice(0, q);
+        const pathOnly = q === -1 ? raw : raw.slice(0, q);
         const search = q === -1 ? "" : raw.slice(q);
-        const target = rewrites[path];
+        const target = rewrites[pathOnly] ?? rewriteGenreOrGame(pathOnly);
         if (target) req.url = `${target}${search}`;
         next();
       });
@@ -62,7 +90,28 @@ function servePublicSubdirIndex(): Plugin {
   };
 }
 
-export default defineConfig(({ mode }) => {
+// ---------------------------------------------------------------------------
+// Generate genre/game SEO pages + sitemap into public/ before the dist copy.
+// Skipped when npm run build already ran build:data (VITE_SEO_BUILT=1).
+// ---------------------------------------------------------------------------
+function generateSeoArtifacts(): Plugin {
+  return {
+    name: "generate-seo-artifacts",
+    buildStart() {
+      if (process.env.VITE_SEO_BUILT === "1") return;
+      const script = join(__dirname, "scripts", "build-seo.mjs");
+      const result = spawnSync(process.execPath, [script], {
+        cwd: __dirname,
+        stdio: "inherit",
+      });
+      if (result.status !== 0) {
+        throw new Error("SEO artifact generation failed");
+      }
+    },
+  };
+}
+
+export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
   const supabaseUrl = env.VITE_SUPABASE_URL ?? "";
@@ -70,8 +119,15 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: "/",
-    plugins: [servePublicSubdirIndex(), injectStatusConfig(supabaseUrl, supabaseKey)],
+    plugins: [
+      servePublicSubdirIndex(),
+      injectPublicConfig(supabaseUrl, supabaseKey, env),
+      ...(command === "build" ? [generateSeoArtifacts()] : []),
+    ],
     build: { sourcemap: false },
     server: { port: 5173, strictPort: true },
+    transformIndexHtml(html: string) {
+      return injectSiteMeta(html, env);
+    },
   };
 });

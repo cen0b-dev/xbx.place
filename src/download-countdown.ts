@@ -1,4 +1,5 @@
-const COUNTDOWN_SECONDS = 5;
+export const GUEST_COUNTDOWN_SECONDS = 5;
+export const SIGNED_IN_COUNTDOWN_SECONDS = 1;
 
 let activeTimer = 0;
 let activeResolve: ((value: boolean) => void) | null = null;
@@ -62,7 +63,7 @@ export function downloadCountdownPanelMarkup(): string {
             <circle class="download-countdown-track" cx="60" cy="60" r="52"></circle>
             <circle class="download-countdown-progress" cx="60" cy="60" r="52"></circle>
           </svg>
-          <span class="download-countdown-num">${COUNTDOWN_SECONDS}</span>
+          <span class="download-countdown-num">${GUEST_COUNTDOWN_SECONDS}</span>
         </div>
         <header class="download-countdown-header">
           <div class="game-modal-eyebrow">Download</div>
@@ -92,13 +93,18 @@ export function bindDownloadCountdownUi(): void {
   });
 }
 
-export function runDownloadCountdown(filename: string): Promise<boolean> {
+export function runDownloadCountdown(
+  filename: string,
+  seconds: number = GUEST_COUNTDOWN_SECONDS
+): Promise<boolean> {
+  if (seconds <= 0) return Promise.resolve(true);
   if (activeResolve) cancelDownloadCountdown();
 
   const root = activeDownloadModalRoot();
   const panel = root ? countdownPanel(root) : null;
   if (!root || !panel) return Promise.resolve(true);
 
+  const totalSeconds = Math.max(1, Math.floor(seconds));
   const numberEl = countdownNumber(root);
   const fileEl = countdownFile(root);
   const progressEl = root.querySelector<SVGCircleElement>(".download-countdown-progress");
@@ -111,7 +117,7 @@ export function runDownloadCountdown(filename: string): Promise<boolean> {
   }
 
   if (fileEl) fileEl.textContent = filename;
-  if (numberEl) numberEl.textContent = String(COUNTDOWN_SECONDS);
+  if (numberEl) numberEl.textContent = String(totalSeconds);
 
   panel.classList.remove("hidden");
   panel.setAttribute("aria-hidden", "false");
@@ -120,14 +126,14 @@ export function runDownloadCountdown(filename: string): Promise<boolean> {
 
   return new Promise((resolve) => {
     activeResolve = resolve;
-    let remaining = COUNTDOWN_SECONDS;
+    let remaining = totalSeconds;
 
     activeTimer = window.setInterval(() => {
       remaining -= 1;
       if (numberEl) numberEl.textContent = String(Math.max(remaining, 0));
       if (progressEl) {
-        const elapsed = COUNTDOWN_SECONDS - remaining;
-        const offset = circumference * (elapsed / COUNTDOWN_SECONDS);
+        const elapsed = totalSeconds - remaining;
+        const offset = circumference * (elapsed / totalSeconds);
         progressEl.style.strokeDashoffset = String(offset);
       }
       if (remaining <= 0) clearActiveCountdown(true);

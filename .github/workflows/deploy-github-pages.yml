@@ -30,6 +30,8 @@ jobs:
           VITE_SUPABASE_URL:          ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY:     ${{ vars.VITE_SUPABASE_ANON_KEY }}
           VITE_TURNSTILE_SITE_KEY:    ${{ vars.VITE_TURNSTILE_SITE_KEY }}
+          VITE_GOOGLE_SITE_VERIFICATION: ${{ vars.VITE_GOOGLE_SITE_VERIFICATION }}
+          INDEXNOW: "1"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

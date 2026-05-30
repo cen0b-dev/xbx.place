@@ -1,5 +1,6 @@
 import { bindCroppedCover } from "./cover-crop";
 import { coverUrl } from "./data";
+import { gamePagePathForTitle } from "./game-slugs";
 import type { TitleEntry } from "./types";
 
 export function stars(rating: number | null | undefined): string {
@@ -126,22 +127,37 @@ function bindHeroBackground(card: HTMLElement, img: HTMLImageElement): void {
   };
 }
 
+function bindCardNavigation(
+  card: HTMLAnchorElement,
+  game: TitleEntry,
+  onActivate: (node: HTMLAnchorElement, entry: TitleEntry) => void
+): void {
+  card.href = gamePagePathForTitle(game.title_id);
+  card.addEventListener("click", (event) => {
+    if (event.defaultPrevented) return;
+    if (event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onActivate(card, game);
+  });
+}
+
 type GridCardOptions = {
   badge?: string;
   dimmed?: boolean;
-  onActivate: (node: HTMLButtonElement, entry: TitleEntry) => void;
+  onActivate: (node: HTMLAnchorElement, entry: TitleEntry) => void;
 };
 
 type AddonListCardOptions = {
   subtitle: string;
   coverSrc: string;
   dimmed?: boolean;
-  onActivate: (node: HTMLButtonElement, entry: TitleEntry) => void;
+  onActivate: (node: HTMLAnchorElement, entry: TitleEntry) => void;
 };
 
-export function createAddonListCard(game: TitleEntry, options: AddonListCardOptions): HTMLButtonElement {
-  const card = document.createElement("button");
-  card.type = "button";
+export function createAddonListCard(game: TitleEntry, options: AddonListCardOptions): HTMLAnchorElement {
+  const card = document.createElement("a");
   card.className = "game-rec-card addon-list-card is-loading";
   if (options.dimmed) card.classList.add("addon-list-card--dim");
   card.dataset.titleId = game.title_id;
@@ -169,16 +185,12 @@ export function createAddonListCard(game: TitleEntry, options: AddonListCardOpti
     bindBrowseCardImage(card, img, game, options.coverSrc);
   }
 
-  card.addEventListener("click", (event) => {
-    event.stopPropagation();
-    options.onActivate(card, game);
-  });
+  bindCardNavigation(card, game, options.onActivate);
   return card;
 }
 
-export function createGridCard(game: TitleEntry, options: GridCardOptions): HTMLButtonElement {
-  const card = document.createElement("button");
-  card.type = "button";
+export function createGridCard(game: TitleEntry, options: GridCardOptions): HTMLAnchorElement {
+  const card = document.createElement("a");
   card.className = "browse-card is-loading";
   if (options.dimmed) card.classList.add("browse-card--dim");
   card.dataset.titleId = game.title_id;
@@ -207,10 +219,7 @@ export function createGridCard(game: TitleEntry, options: GridCardOptions): HTML
   card.appendChild(media);
   card.appendChild(ov);
   card.insertAdjacentHTML("beforeend", hoverPanelHtml(game));
-  card.addEventListener("click", (event) => {
-    event.stopPropagation();
-    options.onActivate(card, game);
-  });
+  bindCardNavigation(card, game, options.onActivate);
   return card;
 }
 
@@ -221,10 +230,10 @@ type HeroCardOptions = {
   onActivate: (entry: TitleEntry) => void;
 };
 
-export function createHeroCard(game: TitleEntry, options: HeroCardOptions): HTMLButtonElement {
-  const card = document.createElement("button");
-  card.type = "button";
+export function createHeroCard(game: TitleEntry, options: HeroCardOptions): HTMLAnchorElement {
+  const card = document.createElement("a");
   card.className = "browse-hero-card is-loading";
+  card.href = gamePagePathForTitle(game.title_id);
   card.setAttribute("aria-label", game.name);
 
   const year = game.release_date ? game.release_date.slice(0, 4) : "";
@@ -255,6 +264,12 @@ export function createHeroCard(game: TitleEntry, options: HeroCardOptions): HTML
     img.src = options.backgroundUrl;
   }
 
-  card.addEventListener("click", () => options.onActivate(game));
+  card.addEventListener("click", (event) => {
+    if (event.defaultPrevented) return;
+    if (event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    options.onActivate(game);
+  });
   return card;
 }

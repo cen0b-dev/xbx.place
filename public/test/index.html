@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vimm download test — xbx.place</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <script>window.__XBX__={supabaseUrl:"%%SUPABASE_URL%%",supabaseKey:"%%SUPABASE_ANON_KEY%%"};</script>
+  <style>
+    :root {
+      --green: #107C10;
+      --red: #E81123;
+      --blue: #0078d4;
+      --bg: #101010;
+      --card: #1a1a1a;
+      --border: #333;
+      --text: #fff;
+      --muted: #888;
+      --font: "Segoe UI", system-ui, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      padding: 32px 20px;
+    }
+    .wrap { max-width: 680px; margin: 0 auto; }
+    h1 { font-size: 22px; margin-bottom: 6px; }
+    .sub { color: var(--muted); font-size: 14px; margin-bottom: 24px; line-height: 1.5; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card h2 { font-size: 15px; margin-bottom: 8px; }
+    .card p { font-size: 13px; color: #bbb; line-height: 1.55; margin-bottom: 12px; }
+    .meta { font-size: 13px; color: #ccc; line-height: 1.6; margin-bottom: 12px; }
+    .meta strong { color: var(--text); }
+    .btn-row { display: flex; flex-direction: column; gap: 10px; }
+    button {
+      width: 100%;
+      padding: 14px 18px;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font: 600 15px var(--font);
+      cursor: pointer;
+    }
+    button.primary { background: var(--green); }
+    button.secondary { background: var(--blue); }
+    button:hover:not(:disabled) { filter: brightness(1.08); }
+    button:disabled { opacity: 0.55; cursor: wait; }
+    #log {
+      margin-top: 16px;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #aaa;
+      white-space: pre-wrap;
+      max-height: 320px;
+      overflow: auto;
+    }
+    .err { color: var(--red); }
+    .ok { color: #6fcf6f; }
+    .warn { color: #ffb900; }
+    a { color: var(--green); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Vimm download test</h1>
+    <p class="sub">
+      Vimm rate-limits by IP. Proxy downloads share Cloudflare egress and hit 429 when overloaded.
+      Direct downloads use <em>your</em> home IP — one extra click on Vimm’s site.
+    </p>
+
+    <div class="card">
+      <div class="meta">
+        <strong>Castle Crashers</strong> (XBLA, ~107 MB)<br />
+        Vault: <a href="https://vimm.net/vault/111677" target="_blank" rel="noopener">vimm.net/vault/111677</a><br />
+        Workers in pool: <span id="pool-count">…</span>
+      </div>
+
+      <div class="card" style="margin: 0; padding: 16px; background: #151515;">
+        <h2>Recommended — your IP</h2>
+        <p>Opens the Vimm vault page in a new tab. Click <strong>Download</strong> there. No shared worker IP, no 429 from other users.</p>
+        <div class="btn-row">
+          <button id="direct-btn" type="button" class="secondary">Open on Vimm (your IP)</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin: 16px 0 0; padding: 16px; background: #151515;">
+        <h2>Proxy fallback — Cloudflare IP</h2>
+        <p>Streams through an idle worker (max 1 Vimm download per worker). Picks a free worker from the pool; tries the next on 429.</p>
+        <div class="btn-row">
+          <button id="proxy-btn" type="button" class="primary" disabled>Download via worker proxy</button>
+        </div>
+      </div>
+
+      <pre id="log"></pre>
+    </div>
+  </div>
+
+  <script type="module">
+    const VAULT_ID = "111677";
+    const VAULT_URL = `https://vimm.net/vault/${VAULT_ID}`;
+    const cfg = window.__XBX__ ?? {};
+
+    const poolCountEl = document.getElementById("pool-count");
+    const directBtn = document.getElementById("direct-btn");
+    const proxyBtn = document.getElementById("proxy-btn");
+    const logEl = document.getElementById("log");
+
+    function log(line, cls = "") {
+      const span = document.createElement("span");
+      if (cls) span.className = cls;
+      span.textContent = `${new Date().toISOString().slice(11, 19)}  ${line}\n`;
+      logEl.appendChild(span);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    async function loadWorkers() {
+      const url = cfg.supabaseUrl?.trim();
+      const key = cfg.supabaseKey?.trim();
+      if (!url || !key) {
+        poolCountEl.textContent = "missing Supabase config";
+        log("Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.", "err");
+        return [];
+      }
+
+      const res = await fetch(
+        `${url}/rest/v1/worker_pool?enabled=eq.true&select=url&order=created_at.asc`,
+        { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+      );
+      if (!res.ok) {
+        poolCountEl.textContent = "fetch failed";
+        return [];
+      }
+      const rows = await res.json();
+      return rows.map((r) => r.url.replace(/\/+$/, "")).filter(Boolean);
+    }
+
+    async function workerSlotFree(origin) {
+      try {
+        const res = await fetch(`${origin}/test/vimm/slot`, {
+          headers: { Accept: "application/json" },
+          credentials: "omit",
+        });
+        if (!res.ok) return false;
+        const body = await res.json();
+        return body.busy !== true;
+      } catch {
+        return false;
+      }
+    }
+
+    async function pickIdleWorker(workers, exclude = new Set()) {
+      const shuffled = [...workers].sort(() => Math.random() - 0.5);
+      for (const origin of shuffled) {
+        if (exclude.has(origin)) continue;
+        if (await workerSlotFree(origin)) return origin;
+      }
+      return null;
+    }
+
+    async function resolveOnWorker(origin) {
+      const res = await fetch(
+        `${origin}/test/vimm/resolve?vault=${encodeURIComponent(VAULT_ID)}`,
+        { headers: { Accept: "application/json" }, credentials: "omit" }
+      );
+      const body = await res.json().catch(() => ({}));
+      return { ok: res.ok, status: res.status, body, origin };
+    }
+
+    directBtn.addEventListener("click", () => {
+      logEl.textContent = "";
+      log("Opening Vimm vault in a new tab…", "ok");
+      log("Click Download on Vimm’s page — uses your IP.", "ok");
+      window.open(VAULT_URL, "_blank", "noopener,noreferrer");
+    });
+
+    proxyBtn.addEventListener("click", async () => {
+      proxyBtn.disabled = true;
+      logEl.textContent = "";
+      const tried = new Set();
+
+      while (tried.size < workers.length) {
+        const origin = await pickIdleWorker(workers, tried);
+        if (!origin) {
+          log("All workers busy or unreachable. Wait or use “Open on Vimm”.", "err");
+          proxyBtn.disabled = false;
+          return;
+        }
+        tried.add(origin);
+        log(`Trying worker: ${origin}`);
+
+        const resolved = await resolveOnWorker(origin);
+        if (!resolved.ok) {
+          const err = resolved.body.error ?? resolved.status;
+          log(`Resolve failed: ${err}`, "err");
+          if (resolved.body.try_other_worker || resolved.status === 429) {
+            log("Trying next worker…", "warn");
+            continue;
+          }
+          proxyBtn.disabled = false;
+          return;
+        }
+
+        log(`Title: ${resolved.body.title}`, "ok");
+        log(`mediaId: ${resolved.body.mediaId}`, "ok");
+        log("Starting proxied stream…", "ok");
+        window.location.assign(
+          `${origin}/test/vimm/download?vault=${encodeURIComponent(VAULT_ID)}`
+        );
+        return;
+      }
+
+      log("No workers available.", "err");
+      proxyBtn.disabled = false;
+    });
+
+    const workers = await loadWorkers();
+    poolCountEl.textContent = workers.length ? String(workers.length) : "none";
+    if (workers.length) {
+      proxyBtn.disabled = false;
+      log(`Loaded ${workers.length} worker(s).`, "ok");
+    } else {
+      log("Add workers via npm run workers", "err");
+    }
+  </script>
+</body>
+</html>

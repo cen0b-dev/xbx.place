@@ -222,7 +222,8 @@ export async function blockIp(kv, ipHash, reason, ttlSec = IP_BLOCK_TTL_SEC) {
   console.warn(JSON.stringify({ event: "ip_blocked", reason, ip_hash: ipHash, ttl_sec: ttlSec }));
 }
 
-export async function checkIpRateLimit(kv, ipHash, route) {
+export async function checkIpRateLimit(kv, ipHash, route, { isRangeResume = false } = {}) {
+  if (isRangeResume) return { ok: true, count: 0 };
   const cfg = route === "file" ? IP_RATE_FILE : IP_RATE_RESOLVE;
   const key = bucketKey(`rl:ip:${route}`, ipHash, cfg.windowSec);
   const count = await kvIncr(kv, key, cfg.windowSec + 5);

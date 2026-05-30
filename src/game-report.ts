@@ -1,3 +1,4 @@
+import { gamePagePath } from "./seo-url";
 import { syncGameModalBackground } from "./data";
 import { formatDownloadDisplay } from "./download-label";
 import { dropdownMarkup, getDropdownValue, mountDropdown, setDropdownValue } from "./form-controls";
@@ -47,7 +48,7 @@ export function closeGameReportUi(): void {
 }
 
 function gamePageUrl(game: TitleEntry): string {
-  return new URL(`?title=${encodeURIComponent(game.title_id)}`, window.location.origin).toString();
+  return new URL(gamePagePath(game.title_id), window.location.origin).toString();
 }
 
 function fileOptionsForGame(game: TitleEntry): Array<{ value: string; label: string }> {

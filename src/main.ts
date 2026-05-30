@@ -1,6 +1,6 @@
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import "./styles.css";
-import { initAuth } from "./auth";
+import { initAuth, isAuthenticated } from "./auth";
 import { initScrollLock } from "./scroll-lock";
 import {
   authModalMarkup,
@@ -35,7 +35,9 @@ import {
   bindDownloadCountdownUi,
   cancelDownloadCountdown,
   downloadCountdownPanelMarkup,
-  runDownloadCountdown
+  GUEST_COUNTDOWN_SECONDS,
+  runDownloadCountdown,
+  SIGNED_IN_COUNTDOWN_SECONDS
 } from "./download-countdown";
 import { discordFooterLinkMarkup, discordHeroLinkMarkup, discordPromoStripMarkup } from "./discord";
 import {
@@ -86,6 +88,16 @@ import {
   readGenreFromUrl,
   syncGenreToUrl
 } from "./genres";
+import { readSearchFromUrl, syncSearchToUrl } from "./search-url";
+import {
+  DEFAULT_OG_IMAGE,
+  applyRobotsMeta,
+  gamePagePath,
+  genrePagePath,
+  loadGameSlugs,
+  readGameIdFromUrl,
+  syncGameToUrl
+} from "./seo-url";
 import { observeReveal, observeRevealChildren, observeRevealFirstRow } from "./reveal";
 import type { DownloadEntry, TitleEntry } from "./types";
 
@@ -98,9 +110,9 @@ type Settings = {
 
 const THEME_COLORS = ["#107C10", "#0078D7", "#E81123", "#881798", "#FFB900"];
 const SITE_NAME = "xbx.place";
-const DEFAULT_TITLE = `${SITE_NAME} - Xbox 360 Games and DLC Archive`;
+const DEFAULT_TITLE = "Xbox 360 ROMs & ISO Downloads — 1,800+ Games | xbx.place";
 const DEFAULT_DESCRIPTION =
-  "Browse Xbox 360 games, updates, and DLC in one fast catalog with title details, artwork, and downloadable archives.";
+  "Download Xbox 360 ROMs and ISOs free. Search 1,800+ games, DLC, and title updates with cover art and ratings. ISO and XEX formats — Redump-aligned catalog.";
 const BASE_URL = import.meta.env.BASE_URL;
 
 
@@ -172,10 +184,12 @@ async function handleDownload(filename: string, button?: HTMLButtonElement): Pro
     button.classList.add("busy");
   }
   try {
-    const proceed = await runDownloadCountdown(filename);
+    const countdownSeconds = isAuthenticated() ? SIGNED_IN_COUNTDOWN_SECONDS : GUEST_COUNTDOWN_SECONDS;
+    const downloadPromise = requestDownloadWithPool(filename, { deferNavigation: true });
+    const proceed = await runDownloadCountdown(filename, countdownSeconds);
     if (!proceed) return;
 
-    const result = await requestDownloadWithPool(filename);
+    const result = await downloadPromise;
     if (result.status === "auth_required") {
       openGuestDownloadGate(result.reason, result.activeFilename);
       return;
@@ -183,6 +197,9 @@ async function handleDownload(filename: string, button?: HTMLButtonElement): Pro
     if (result.status === "blocked") {
       showDownloadNotice(result.message, true);
       return;
+    }
+    if (result.redirectUrl) {
+      window.location.assign(result.redirectUrl);
     }
     showDownloadNotice("Download started. Open your browser downloads (Chrome: ⌘+Shift+J). Large X360 files can take a while to appear.", false);
   } finally {
@@ -381,13 +398,20 @@ function renderShell(): void {
   if (!root) throw new Error("Missing app root");
   const aboutHref = `${BASE_URL}about.html`;
   const dmcaHref = `${BASE_URL}dmca.html`;
+  const romsHref = `${BASE_URL}xbox-360-roms.html`;
+  const dlcHref = `${BASE_URL}xbox-360-dlc.html`;
+  const xeniaGuideHref = `${BASE_URL}guides/xenia-xbox-360-roms.html`;
+  const pressHref = `${BASE_URL}press.html`;
+  const genreFooterLinks = GENRE_FILTERS.slice(0, 6)
+    .map((filter) => `<a href="${BASE_URL}${genrePagePath(filter.slug).replace(/^\//, "")}">${filter.label}</a>`)
+    .join("");
   root.innerHTML = `
     <div id="btt"><i class="fa-solid fa-arrow-up"></i></div>
     <header class="header">
       <div class="top-bar">
         <div class="brand" id="brand-home" role="button" tabindex="0" aria-label="Back to browse">
           <img class="brand-logo" src="${BASE_URL}logo.png" width="36" height="36" alt="" />
-          <h1>xbx.<span>place</span></h1>
+          <div class="brand-name" id="brand-name">xbx.<span>place</span></div>
         </div>
         <div class="header-account account-menu-host" id="header-account-fallback"></div>
       </div>
@@ -427,9 +451,9 @@ function renderShell(): void {
           </div>
           <div class="site-hero-inner">
             <div class="site-hero-copy">
-              <span class="site-hero-eyebrow" id="siteHeroEyebrow">Xbox 360 Archive</span>
-              <h2 class="site-hero-title" id="siteHeroTitle">Games, <span>DLC</span>, and metadata in one catalog</h2>
-              <p class="site-hero-lead" id="siteHeroLead">Search thousands of titles with cover art, ratings, and downloadable archives — built for preservation and easy rediscovery.</p>
+              <span class="site-hero-eyebrow" id="siteHeroEyebrow">Xbox 360 ROMs & ISO</span>
+              <h1 class="site-hero-title" id="siteHeroTitle">Download Xbox 360 Games, <span>DLC</span> & Updates</h1>
+              <p class="site-hero-lead" id="siteHeroLead">Browse 1,800+ Xbox 360 ROMs and ISOs free — with cover art, ratings, DLC, title updates, and fast downloads via Xenia-compatible formats.</p>
               <div class="site-hero-stats">
                 <span class="site-hero-stat" id="siteHeroGames"><strong>—</strong> games</span>
                 <span class="site-hero-stat" id="siteHeroAddons"><strong>—</strong> add-ons</span>
@@ -858,8 +882,11 @@ function renderShell(): void {
         </div>
         <div>The premier archive for X360 content.</div>
       </div>
-      <div class="footer-links">
-        <a href="${aboutHref}">About</a>${discordFooterLinkMarkup()}<a href="${dmcaHref}">DMCA</a>
+      <div class="footer-nav">
+        <div class="footer-links">
+          <a href="${aboutHref}">About</a><a href="${romsHref}">Xbox 360 ROMs</a><a href="${dlcHref}">DLC</a><a href="${xeniaGuideHref}">Xenia guide</a><a href="${pressHref}">Press</a>${discordFooterLinkMarkup()}<a href="${dmcaHref}">DMCA</a>
+        </div>
+        <div class="footer-genres">${genreFooterLinks}</div>
       </div>
     </footer>
   `;
@@ -885,11 +912,10 @@ function closeGamePage(push = true): void {
     url.searchParams.delete("title");
     if (url.searchParams.has("collection")) {
       window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    } else if (activeGenre) {
+      syncGenreToUrl(activeGenre, true);
     } else {
-      const next = activeGenre
-        ? `${window.location.pathname}?genre=${encodeURIComponent(activeGenre)}`
-        : window.location.pathname;
-      window.history.pushState(null, "", next);
+      window.history.pushState(null, "", `/${url.search}${url.hash}`);
     }
   }
   syncDefaultHead();
@@ -1356,9 +1382,7 @@ function openGamePage(game: TitleEntry, push = true): void {
   });
 
   if (push) {
-    const url = new URL(window.location.href);
-    url.searchParams.set("title", game.title_id);
-    window.history.pushState({ id: game.title_id }, "", `${url.pathname}${url.search}${url.hash}`);
+    syncGameToUrl(game.title_id, true);
   }
   syncGameHead(game);
 }
@@ -1384,34 +1408,44 @@ function setCanonical(pathAndQuery: string): void {
   link.setAttribute("href", canonicalHref);
 }
 
+function syncRobotsHead(): void {
+  applyRobotsMeta();
+}
+
 function syncDefaultHead(): void {
   document.title = DEFAULT_TITLE;
   upsertMeta("description", DEFAULT_DESCRIPTION);
   upsertMeta("og:title", DEFAULT_TITLE, "property");
   upsertMeta("og:description", DEFAULT_DESCRIPTION, "property");
   upsertMeta("og:url", new URL(window.location.pathname, window.location.origin).toString(), "property");
+  upsertMeta("og:image", DEFAULT_OG_IMAGE, "property");
   upsertMeta("twitter:title", DEFAULT_TITLE);
   upsertMeta("twitter:description", DEFAULT_DESCRIPTION);
-  setCanonical(window.location.pathname);
+  upsertMeta("twitter:card", "summary_large_image");
+  upsertMeta("twitter:image", DEFAULT_OG_IMAGE);
+  syncRobotsHead();
+  setCanonical(window.location.pathname + window.location.search);
 }
 
 function syncGameHead(game: TitleEntry): void {
-  const title = `${game.name} | ${SITE_NAME}`;
+  const title = `${game.name} Xbox 360 ROM Download | ${SITE_NAME}`;
   const description =
     game.description?.trim() ||
-    `View ${game.name} on ${SITE_NAME} with metadata, rating, artwork, and downloadable archives where available.`;
-  const url = new URL(window.location.href);
-  url.searchParams.set("title", game.title_id);
-  const pathAndQuery = `${url.pathname}${url.search}${url.hash}`;
-  const pageUrl = new URL(pathAndQuery, window.location.origin).toString();
+    `Download ${game.name} for Xbox 360 — ROM, ISO, and XEX files with metadata, ratings, and cover art. Available on ${SITE_NAME}.`;
+  const pageUrl = new URL(gamePagePath(game.title_id), window.location.origin).toString();
+  const image = coverUrl(game);
   document.title = title;
   upsertMeta("description", description);
   upsertMeta("og:title", title, "property");
   upsertMeta("og:description", description, "property");
   upsertMeta("og:url", pageUrl, "property");
+  upsertMeta("og:image", image, "property");
   upsertMeta("twitter:title", title);
   upsertMeta("twitter:description", description);
-  setCanonical(pathAndQuery);
+  upsertMeta("twitter:card", "summary_large_image");
+  upsertMeta("twitter:image", image);
+  upsertMeta("robots", "index, follow, max-image-preview:large");
+  setCanonical(gamePagePath(game.title_id));
 }
 
 function similarTitles(game: TitleEntry, limit = 10): TitleEntry[] {
@@ -1724,6 +1758,8 @@ function clearSearchQuery(): void {
   if (!input) return;
   input.value = "";
   syncSearchClearButton();
+  syncSearchToUrl("", true);
+  syncRobotsHead();
   applyFilters();
   input.focus();
 }
@@ -1804,8 +1840,8 @@ function renderHeroRows(): void {
   observeRevealChildren(hGrid, ".browse-hero-card", 45);
 }
 
-function buildGridCard(game: TitleEntry): HTMLButtonElement {
-  const onActivate = (_node: HTMLButtonElement, entry: TitleEntry) => {
+function buildGridCard(game: TitleEntry): HTMLAnchorElement {
+  const onActivate = (_node: HTMLAnchorElement, entry: TitleEntry) => {
     if (category === "DLC") openPackageModal(entry);
     else openGamePage(entry);
   };
@@ -2106,6 +2142,8 @@ function bindGenreEvents(): void {
       syncAddonTypeToUrl("all", true);
       const input = document.getElementById("q") as HTMLInputElement | null;
       if (input) input.value = "";
+      syncSearchToUrl("", true);
+      syncRobotsHead();
       syncSearchClearButton();
       syncRegion("all");
       setDropdownValue("sort", defaultSortForCategory());
@@ -2363,7 +2401,11 @@ function bindStaticEvents(): void {
   searchInput?.addEventListener("input", () => {
     syncSearchClearButton();
     window.clearTimeout(searchTimer);
-    searchTimer = window.setTimeout(() => applyFilters(), 150);
+    searchTimer = window.setTimeout(() => {
+      syncSearchToUrl(searchInput.value, true);
+      syncRobotsHead();
+      applyFilters();
+    }, 150);
   });
   document.getElementById("search-clear")?.addEventListener("click", () => clearSearchQuery());
   bindFormControlGlobals();
@@ -2429,13 +2471,22 @@ async function bootstrap(): Promise<void> {
   bindGuestDownloadGateUi();
   bindDownloadCountdownUi();
   bindGameReportUi(() => activeGame);
-  const [, rows] = await Promise.all([initAuth(), loadTitles(), initProxyPool()]);
+  const [, rows] = await Promise.all([initAuth(), loadTitles(), loadGameSlugs(), initProxyPool()]);
   db = rows;
   renderSiteHero();
   updateBrowseModeChrome();
   renderHeroRows();
   activeGenre = readGenreFromUrl();
   activeAddonType = readAddonTypeFromUrl();
+  if (window.location.search.includes("genre=") && activeGenre) {
+    syncGenreToUrl(activeGenre, false);
+  }
+  const initialSearch = readSearchFromUrl();
+  const searchInputEl = document.getElementById("q") as HTMLInputElement | null;
+  if (searchInputEl && initialSearch) {
+    searchInputEl.value = initialSearch;
+    syncSearchClearButton();
+  }
   renderGenreRail();
   renderAddonTypeRail();
   syncSortDropdownForCategory();
@@ -2443,7 +2494,7 @@ async function bootstrap(): Promise<void> {
   applyFilters();
   updateFilterDrawerChrome();
 
-  const initialId = new URLSearchParams(window.location.search).get("title");
+  const initialGameId = readGameIdFromUrl();
   const initialProfile = new URLSearchParams(window.location.search).get("profile");
   const initialCollection = new URLSearchParams(window.location.search).get("collection");
   if (initialCollection) {
@@ -2452,41 +2503,58 @@ async function bootstrap(): Promise<void> {
   } else if (initialProfile) {
     await syncProfileRouteFromUrl();
   }
-  if (initialId) {
-    const found = db.find((g) => g.title_id === initialId);
+  if (initialGameId) {
+    if (window.location.search.includes("title=")) {
+      syncGameToUrl(initialGameId, false);
+    }
+    const found = db.find((g) => g.title_id.toUpperCase() === initialGameId.toUpperCase());
     if (found) openGamePage(found, false);
   }
+  syncRobotsHead();
   window.addEventListener("popstate", () => {
     const params = new URLSearchParams(window.location.search);
     const collectionId = params.get("collection");
-    const titleId = params.get("title");
+    const titleId = readGameIdFromUrl();
 
-    if (params.get("profile")) return;
+    if (params.get("profile")) {
+      syncRobotsHead();
+      return;
+    }
 
     if (titleId) {
-      const found = db.find((g) => g.title_id === titleId);
+      const found = db.find((g) => g.title_id.toUpperCase() === titleId.toUpperCase());
       if (found) openGamePage(found, false);
       else closeGamePage(false);
       if (collectionId) void openCollectionDetail(collectionId, false);
       else closeCollectionDetail(false);
+      syncRobotsHead();
       return;
     }
 
     closeGamePage(false);
     if (collectionId) {
       void syncCollectionRouteFromUrl();
+      syncRobotsHead();
       return;
     }
     closeCollectionDetail(false);
     activeGenre = readGenreFromUrl();
     activeAddonType = readAddonTypeFromUrl();
+    const searchInputPop = document.getElementById("q") as HTMLInputElement | null;
+    if (searchInputPop) {
+      searchInputPop.value = readSearchFromUrl();
+      syncSearchClearButton();
+    }
     renderGenreRail();
     renderAddonTypeRail();
     syncSortDropdownForCategory();
     updateBrowseSectionChrome();
     applyFilters();
+    syncDefaultHead();
   });
 }
+
+document.body.classList.add("app-mounted");
 
 bootstrap().catch((error: unknown) => {
   if (root) {

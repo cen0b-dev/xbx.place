@@ -6,6 +6,7 @@
  */
 
 const COOLOFF_MS = 5 * 60 * 1000;
+const LAST_WORKER_KEY = "xbx_last_worker_origin";
 
 /** Fire-and-forget event to the log-event Edge Function. */
 export function notifyEvent(type: string, workerUrl?: string, message?: string): void {
@@ -27,6 +28,50 @@ type WorkerHealth = { coolingUntil: number };
 const healthMap = new Map<string, WorkerHealth>();
 let pool: string[] = [];
 let poolPromise: Promise<void> | null = null;
+let lastWorkerIndex = -1;
+
+function readSessionLastOrigin(): string | null {
+  try {
+    return sessionStorage.getItem(LAST_WORKER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionLastOrigin(origin: string): void {
+  try {
+    sessionStorage.setItem(LAST_WORKER_KEY, origin);
+  } catch {
+    /* private mode */
+  }
+}
+
+function pickRoundRobin(candidates: string[], afterOrigin?: string): string | null {
+  if (!candidates.length) return null;
+
+  let startPos = -1;
+  if (afterOrigin) {
+    startPos = candidates.indexOf(afterOrigin);
+  } else {
+    const lastOrigin = readSessionLastOrigin();
+    if (lastOrigin) {
+      startPos = candidates.indexOf(lastOrigin);
+    } else if (lastWorkerIndex >= 0 && lastWorkerIndex < pool.length) {
+      startPos = candidates.indexOf(pool[lastWorkerIndex]!);
+    }
+  }
+
+  for (let step = 1; step <= candidates.length; step += 1) {
+    const idx = (startPos + step) % candidates.length;
+    const origin = candidates[idx];
+    if (!origin) continue;
+    lastWorkerIndex = pool.indexOf(origin);
+    writeSessionLastOrigin(origin);
+    return origin;
+  }
+
+  return null;
+}
 
 async function fetchFromSupabase(): Promise<string[]> {
   const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
@@ -67,23 +112,24 @@ export function hasProxy(): boolean {
 }
 
 /**
- * Pick a random healthy worker. Falls back to any worker if all are cooling.
+ * Pick the next healthy worker in pool order (round-robin).
+ * Falls back to any worker if all are cooling.
  */
 export function pickProxy(): string | null {
   if (!pool.length) return null;
   const healthy = pool.filter(isHealthy);
   const candidates = healthy.length ? healthy : [...pool];
-  return candidates[Math.floor(Math.random() * candidates.length)] ?? null;
+  return pickRoundRobin(candidates);
 }
 
 /**
- * Pick a healthy worker that is NOT the excluded origin.
+ * Pick the next healthy worker after `exclude` in rotation order.
  * Returns null when no alternative is available.
  */
 export function pickNextProxy(exclude: string): string | null {
   const healthy = pool.filter((o) => o !== exclude && isHealthy(o));
   if (!healthy.length) return null;
-  return healthy[Math.floor(Math.random() * healthy.length)] ?? null;
+  return pickRoundRobin(healthy, exclude);
 }
 
 /** Mark a worker as rate-limited/erroring; it will be skipped for COOLOFF_MS. */

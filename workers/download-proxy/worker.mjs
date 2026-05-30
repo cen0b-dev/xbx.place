@@ -10,11 +10,12 @@
 import {
   buildIaCookieHeader,
   fetchIaCookiePoolFromSupabase,
-  pickIaCookiePair,
+  pickIaCookiePairLru,
   recordIaCookieUse,
 } from "../../scripts/ia-cookie-pool.mjs";
 import {
   HONEYPOT_MARKER,
+  TICKET_WINDOW_SEC,
   blockIp,
   botScore,
   buildLogContext,
@@ -30,6 +31,7 @@ import {
   verifyDownloadTicket,
   verifyTurnstile,
 } from "./security.mjs";
+import { handleVimmTestRequest } from "./vimm.mjs";
 
 let mapCache = { map: null, expiresAt: 0 };
 let cookiePoolCache = { pool: null, expiresAt: 0 };
@@ -38,6 +40,8 @@ const COOKIE_POOL_TTL_MS = 60 * 1000;
 const MAX_REDIRECTS = 8;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const GUEST_ACTIVE_STALE_MS = 6 * 60 * 60 * 1000;
+/** Re-resolve IA CDN URLs older than this before streaming (session may expire). */
+const IA_CDN_URL_MAX_AGE_MS = 15_000;
 
 // ---------------------------------------------------------------------------
 // Response helpers
@@ -194,39 +198,48 @@ async function setGuestDownloadActive(env, guestId, filename) {
   return { ok: true };
 }
 
-function responseWithGuestRelease(env, guestId, upstream, filename, request, workerEnv) {
+function createGuestRelease(env, guestId, ctx) {
+  let released = false;
+  return (reason) => {
+    if (released) return;
+    released = true;
+    if (reason) {
+      console.log(JSON.stringify({ event: "guest_stream_release", reason }));
+    }
+    const p = clearGuestDownload(env, guestId);
+    if (ctx) ctx.waitUntil(p);
+    else void p;
+  };
+}
+
+function responseWithGuestRelease(env, guestId, upstream, filename, request, workerEnv, ctx) {
+  const headers = passthroughHeaders(upstream, filename);
+  for (const [name, value] of corsHeaders(request, workerEnv)) headers.set(name, value);
+  const releaseGuest = createGuestRelease(env, guestId, ctx);
+
+  if (request.signal.aborted) {
+    releaseGuest("client_aborted");
+    return new Response(null, { status: 499, headers });
+  }
+
+  request.signal.addEventListener("abort", () => releaseGuest("client_aborted"), { once: true });
+
   if (!upstream.body) {
-    void clearGuestDownload(env, guestId);
-    const headers = passthroughHeaders(upstream, filename);
-    for (const [name, value] of corsHeaders(request, workerEnv)) headers.set(name, value);
+    releaseGuest("empty_body");
     return new Response(null, { status: upstream.status, headers });
   }
 
   const { readable, writable } = new TransformStream();
-  const writer = writable.getWriter();
-  const reader = upstream.body.getReader();
+  const pipePromise = upstream.body
+    .pipeTo(writable, { signal: request.signal })
+    .catch(() => {
+      /* client aborted, upstream error, or signal fired */
+    })
+    .finally(() => releaseGuest("stream_end"));
 
-  void (async () => {
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        await writer.write(value);
-      }
-    } catch {
-      /* client aborted or upstream error */
-    } finally {
-      try {
-        await writer.close();
-      } catch {
-        /* already closed */
-      }
-      await clearGuestDownload(env, guestId);
-    }
-  })();
+  if (ctx) ctx.waitUntil(pipePromise);
+  else void pipePromise;
 
-  const headers = passthroughHeaders(upstream, filename);
-  for (const [name, value] of corsHeaders(request, workerEnv)) headers.set(name, value);
   return new Response(readable, { status: upstream.status, headers });
 }
 
@@ -328,7 +341,13 @@ async function loadIaCookiePool(env) {
 
 async function pickIaCookie(env) {
   const pool = await loadIaCookiePool(env);
-  return pickIaCookiePair(pool);
+  return pickIaCookiePairLru(pool);
+}
+
+async function findCookiePairById(env, cookieId) {
+  if (!cookieId) return null;
+  const pool = await loadIaCookiePool(env);
+  return pool.find((entry) => entry.id === cookieId) ?? null;
 }
 
 async function resolveIaUrl(archiveUrl, pair) {
@@ -351,6 +370,93 @@ async function resolveIaUrl(archiveUrl, pair) {
   }
 
   return { url: archiveUrl.toString(), verified: false };
+}
+
+async function streamFromResolvedUrl(request, env, ctx, { cdnUrl, pair, filename, guestId }) {
+  if (!pair) return jsonResponse(503, { error: "IA cookie pool not configured on worker" }, request, env);
+
+  const cookie = buildIaCookieHeader(pair);
+  recordIaCookieUse(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, pair.id, "ok");
+
+  const upstreamHeaders = { Cookie: cookie };
+  const range = request.headers.get("Range");
+  if (range) upstreamHeaders.Range = range;
+
+  let upstream;
+  try {
+    upstream = await fetch(cdnUrl, {
+      redirect: "follow",
+      headers: upstreamHeaders,
+      signal: request.signal,
+    });
+  } catch (error) {
+    if (guestId) ctx.waitUntil(clearGuestDownload(env, guestId));
+    if (error instanceof Error && error.name === "AbortError") {
+      const headers = corsHeaders(request, env);
+      return new Response(null, { status: 499, headers });
+    }
+    return jsonResponse(502, { error: "Upstream fetch failed" }, request, env);
+  }
+
+  if (!upstream.ok) {
+    if (guestId) ctx.waitUntil(clearGuestDownload(env, guestId));
+    const headers = passthroughHeaders(upstream, filename);
+    for (const [name, value] of corsHeaders(request, env)) headers.set(name, value);
+    return new Response(upstream.body, { status: upstream.status, headers });
+  }
+
+  if (guestId) {
+    return responseWithGuestRelease(env, guestId, upstream, filename, request, env, ctx);
+  }
+
+  const headers = passthroughHeaders(upstream, filename);
+  for (const [name, value] of corsHeaders(request, env)) headers.set(name, value);
+  return new Response(upstream.body, { status: upstream.status, headers });
+}
+
+async function streamForFileRequest(request, env, ctx, archiveUrl, filename, guestId, cached, logCtx) {
+  let pair = null;
+  if (cached?.cookieId) {
+    pair = await findCookiePairById(env, cached.cookieId);
+  }
+  if (!pair) pair = await pickIaCookie(env);
+  if (!pair) {
+    if (guestId) ctx.waitUntil(clearGuestDownload(env, guestId));
+    return jsonResponse(503, { error: "IA cookie pool not configured on worker" }, request, env);
+  }
+
+  const cacheAge =
+    typeof cached?.resolvedAt === "number" ? Date.now() - cached.resolvedAt : Number.POSITIVE_INFINITY;
+  const useCachedUrl = Boolean(cached?.cdnUrl && cacheAge <= IA_CDN_URL_MAX_AGE_MS);
+
+  let cdnUrl;
+  if (useCachedUrl) {
+    cdnUrl = cached.cdnUrl;
+    console.log(
+      JSON.stringify({
+        event: "ia_resolve_cache_hit",
+        filename_hash: logCtx?.filename_hash,
+        cache_age_ms: cacheAge,
+      })
+    );
+  } else {
+    const resolved = await resolveIaUrl(archiveUrl, pair);
+    if (!resolved.verified) {
+      recordIaCookieUse(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, pair.id, "resolve_fail");
+      if (guestId) ctx.waitUntil(clearGuestDownload(env, guestId));
+      return jsonResponse(502, { error: "Could not resolve Archive download URL" }, request, env);
+    }
+    cdnUrl = resolved.url;
+    console.log(
+      JSON.stringify({
+        event: cached?.cdnUrl ? "ia_resolve_cache_stale" : "ia_resolve_at_stream",
+        filename_hash: logCtx?.filename_hash,
+        cache_age_ms: Number.isFinite(cacheAge) ? cacheAge : null,
+      })
+    );
+  }
+
+  return streamFromResolvedUrl(request, env, ctx, { cdnUrl, pair, filename, guestId });
 }
 
 // ---------------------------------------------------------------------------
@@ -430,7 +536,8 @@ async function runSecurityChecks(request, env, reqUrl, filename, route, identity
     return { ok: false, status: 403, error: "blocked" };
   }
 
-  const ipLimit = await checkIpRateLimit(kv, logCtx.ip_hash, route);
+  const isRangeResume = route === "file" && Boolean(request.headers.get("Range")?.trim());
+  const ipLimit = await checkIpRateLimit(kv, logCtx.ip_hash, route, { isRangeResume });
   if (!ipLimit.ok) {
     await logDownloadAttempt({ ...logCtx, outcome: "rate_limited", scope: "ip", count: ipLimit.count });
     return { ok: false, rateLimited: true, retryAfter: ipLimit.retryAfter };
@@ -492,6 +599,14 @@ export default {
     const reqUrl = new URL(request.url);
     const path = reqUrl.pathname.replace(/\/$/, "");
 
+    if (path.startsWith("/test/vimm")) {
+      return handleVimmTestRequest(request, env, reqUrl, path, {
+        jsonResponse,
+        corsHeaders,
+        redirectResponse,
+      });
+    }
+
     if (path !== "/download" && path !== "/download/file") {
       return jsonResponse(404, { error: "Not found" }, request, env);
     }
@@ -525,9 +640,10 @@ export default {
     let guestId = null;
     let identityType = null;
     let identityId = null;
+    let ticket = "";
 
     if (isFileRoute) {
-      const ticket = reqUrl.searchParams.get("ticket")?.trim() ?? "";
+      ticket = reqUrl.searchParams.get("ticket")?.trim() ?? "";
       const allowed = await authorizeDownloadFile(env, ticket, filename);
       if (!allowed.ok) {
         const logCtx = await buildLogContext(request, reqUrl, filename);
@@ -599,7 +715,17 @@ export default {
     }
 
     if (path === "/download") {
-      let ticket;
+      const pair = await pickIaCookie(env);
+      if (!pair) {
+        return jsonResponse(503, { error: "IA cookie pool not configured on worker" }, request, env);
+      }
+
+      const resolved = await resolveIaUrl(archiveUrl, pair);
+      if (!resolved.verified) {
+        recordIaCookieUse(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, pair.id, "resolve_fail");
+        return jsonResponse(502, { error: "Could not resolve Archive download URL" }, request, env);
+      }
+
       try {
         ticket = await createDownloadTicket(env, identityType, identityId, filename);
       } catch (e) {
@@ -608,6 +734,14 @@ export default {
           { error: e instanceof Error ? e.message : "Ticket creation failed" },
           request,
           env
+        );
+      }
+
+      if (env.DOWNLOAD_KV) {
+        await env.DOWNLOAD_KV.put(
+          `ia-resolve:${ticket}`,
+          JSON.stringify({ cdnUrl: resolved.url, cookieId: pair.id, resolvedAt: Date.now() }),
+          { expirationTtl: TICKET_WINDOW_SEC }
         );
       }
 
@@ -624,50 +758,18 @@ export default {
       return redirectResponse(fileUrl, request, env);
     }
 
-    // /download/file — resolve IA CDN URL and stream
+    // /download/file — stream from cached CDN URL or resolve on the fly
     await logDownloadAttempt({
       ...security.logCtx,
       outcome: "allowed",
       identity_type: identityType,
     });
 
-    const pair = await pickIaCookie(env);
-    if (!pair) return jsonResponse(503, { error: "IA cookie pool not configured on worker" }, request, env);
+    const cached =
+      env.DOWNLOAD_KV && ticket
+        ? await env.DOWNLOAD_KV.get(`ia-resolve:${ticket}`, "json")
+        : null;
 
-    const cookie = buildIaCookieHeader(pair);
-    const resolved = await resolveIaUrl(archiveUrl, pair);
-    if (!resolved.verified) {
-      recordIaCookieUse(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, pair.id, "resolve_fail");
-      return jsonResponse(502, { error: "Could not resolve Archive download URL" }, request, env);
-    }
-
-    recordIaCookieUse(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, pair.id, "ok");
-
-    const upstreamHeaders = { Cookie: cookie };
-    const range = request.headers.get("Range");
-    if (range) upstreamHeaders.Range = range;
-
-    let upstream;
-    try {
-      upstream = await fetch(resolved.url, { redirect: "follow", headers: upstreamHeaders });
-    } catch {
-      if (guestId) ctx.waitUntil(clearGuestDownload(env, guestId));
-      return jsonResponse(502, { error: "Upstream fetch failed" }, request, env);
-    }
-
-    if (!upstream.ok) {
-      if (guestId) ctx.waitUntil(clearGuestDownload(env, guestId));
-      const headers = passthroughHeaders(upstream, filename);
-      for (const [name, value] of corsHeaders(request, env)) headers.set(name, value);
-      return new Response(upstream.body, { status: upstream.status, headers });
-    }
-
-    if (guestId) {
-      return responseWithGuestRelease(env, guestId, upstream, filename, request, env);
-    }
-
-    const headers = passthroughHeaders(upstream, filename);
-    for (const [name, value] of corsHeaders(request, env)) headers.set(name, value);
-    return new Response(upstream.body, { status: upstream.status, headers });
+    return streamForFileRequest(request, env, ctx, archiveUrl, filename, guestId, cached, security.logCtx);
   },
 };

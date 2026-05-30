@@ -1,3 +1,4 @@
+import { applyRobotsMeta } from "./seo-url";
 import type { User } from "@supabase/supabase-js";
 import { isSiteAdmin } from "./admin";
 import { getCurrentUser, onAuthChange } from "./auth";
@@ -440,6 +441,7 @@ export async function syncCollectionRouteFromUrl(): Promise<void> {
     return;
   }
   await openCollectionDetail(param, false);
+  applyRobotsMeta();
 }
 
 export function setCollectionDetailTitleIndex(index: Map<string, TitleEntry>): void {

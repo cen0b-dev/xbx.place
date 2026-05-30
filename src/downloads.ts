@@ -15,9 +15,13 @@ try {
 }
 
 export type DownloadGateResult =
-  | { status: "started" }
+  | { status: "started"; redirectUrl?: string }
   | { status: "auth_required"; reason: GuestGateReason; activeFilename?: string }
   | { status: "blocked"; message: string; tryOtherWorkers?: boolean };
+
+type RequestDownloadOptions = {
+  deferNavigation?: boolean;
+};
 
 function getGuestId(): string {
   let id = window.localStorage.getItem(GUEST_ID_KEY);
@@ -52,7 +56,12 @@ function mapGuestAuthError(
   return null;
 }
 
-async function requestDownload(resolveUrl: string, filename: string): Promise<DownloadGateResult> {
+async function requestDownload(
+  resolveUrl: string,
+  filename: string,
+  options: RequestDownloadOptions = {}
+): Promise<DownloadGateResult> {
+  const { deferNavigation = false } = options;
   const token = await getAccessToken();
   if (!token && isAuthenticated()) {
     return {
@@ -97,6 +106,7 @@ async function requestDownload(resolveUrl: string, filename: string): Promise<Do
   if (res.status === 302) {
     const location = res.headers.get("Location");
     if (!location) return { status: "blocked", message: "Download redirect missing." };
+    if (deferNavigation) return { status: "started", redirectUrl: location };
     startDownloadNavigation(location);
     return { status: "started" };
   }
@@ -146,6 +156,7 @@ async function requestDownload(resolveUrl: string, filename: string): Promise<Do
   const redirectUrl = body.redirect ?? body.url;
   if (!redirectUrl) return { status: "blocked", message: "No download URL returned." };
 
+  if (deferNavigation) return { status: "started", redirectUrl };
   startDownloadNavigation(redirectUrl);
   return { status: "started" };
 }
@@ -154,7 +165,10 @@ async function requestDownload(resolveUrl: string, filename: string): Promise<Do
  * Pick a healthy worker from the pool and request the download, failing over
  * to the next worker on transient errors.
  */
-export async function requestDownloadWithPool(filename: string): Promise<DownloadGateResult> {
+export async function requestDownloadWithPool(
+  filename: string,
+  options: RequestDownloadOptions = {}
+): Promise<DownloadGateResult> {
   const archiveFilename = filename.trim();
   if (!archiveFilename) {
     return { status: "blocked", message: "Missing download filename." };
@@ -168,7 +182,8 @@ export async function requestDownloadWithPool(filename: string): Promise<Downloa
   while (origin !== null) {
     const result = await requestDownload(
       `${origin}/download?filename=${encodeURIComponent(archiveFilename)}`,
-      archiveFilename
+      archiveFilename,
+      options
     );
 
     if (result.status === "started" || result.status === "auth_required") return result;

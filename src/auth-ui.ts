@@ -7,6 +7,7 @@ import {
   signUpWithPassword,
   type AuthMode
 } from "./auth";
+import { applyRobotsMeta } from "./seo-url";
 import {
   COLLECTION_DESCRIPTION_MAX_LEN,
   deleteCollection,
@@ -800,9 +801,11 @@ export async function syncProfileRouteFromUrl(): Promise<void> {
   if (param === "me") {
     if (activeUser) openProfilePage(false);
     else closeProfilePage(false);
+    applyRobotsMeta();
     return;
   }
   await openPublicProfileByGamertag(param, false);
+  applyRobotsMeta();
 }
 
 export function closeProfilePage(push = true): void {

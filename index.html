@@ -3,16 +3,41 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>xbx.place - Xbox 360 Games and DLC Archive</title>
+    <meta name="color-scheme" content="dark" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #101010;
+        color: #fff;
+      }
+      #app {
+        min-height: 100dvh;
+        background: #101010;
+      }
+      body.app-mounted #seo-content {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
+    <title>Xbox 360 ROMs & ISO Downloads — 1,800+ Games | xbx.place</title>
     <meta
       name="description"
-      content="Browse Xbox 360 games, updates, and DLC in one fast catalog with title details, artwork, and downloadable archives."
+      content="Download Xbox 360 ROMs and ISOs free. Search 1,800+ games, DLC, and title updates with cover art and ratings. ISO and XEX formats — Redump-aligned catalog."
     />
     <meta
       name="keywords"
-      content="Xbox 360, x360, game archive, DLC, title database, retro gaming, xbx.place"
+      content="Xbox 360, x360, roms, iso, xex, download, free, emulator, xenia, redump, game archive, DLC, title database, retro gaming, xbx.place"
     />
     <meta name="robots" content="index, follow, max-image-preview:large" />
+    <!-- %%GOOGLE_SITE_VERIFICATION%% -->
     <meta name="theme-color" content="#107C10" />
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
@@ -20,21 +45,21 @@
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="xbx.place" />
-    <meta property="og:title" content="xbx.place - Xbox 360 Games and DLC Archive" />
+    <meta property="og:title" content="Xbox 360 ROMs & ISO Downloads — 1,800+ Games | xbx.place" />
     <meta
       property="og:description"
-      content="Explore Xbox 360 titles, artwork, ratings, and downloadable game archives from a unified catalog."
+      content="Download Xbox 360 ROMs and ISOs free. Search 1,800+ games, DLC, and title updates with cover art and ratings. ISO and XEX formats — Redump-aligned catalog."
     />
     <meta property="og:url" content="https://xbx.place/" />
-    <meta property="og:image" content="https://xbx.place/logo.png" />
-    <meta property="og:image:width" content="286" />
-    <meta property="og:image:height" content="231" />
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:image" content="https://xbx.place/logo.png" />
-    <meta name="twitter:title" content="xbx.place - Xbox 360 Games and DLC Archive" />
+    <meta property="og:image" content="https://xbx.place/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://xbx.place/og-image.png" />
+    <meta name="twitter:title" content="Xbox 360 ROMs & ISO Downloads — 1,800+ Games | xbx.place" />
     <meta
       name="twitter:description"
-      content="Discover Xbox 360 games, DLC, and title metadata in a clean searchable archive."
+      content="Download Xbox 360 ROMs and ISOs free. Search 1,800+ games, DLC, and title updates with cover art and ratings."
     />
     <script type="application/ld+json">
       {
@@ -45,8 +70,16 @@
             "@id": "https://xbx.place/#website",
             "name": "xbx.place",
             "url": "https://xbx.place/",
-            "description": "Xbox 360 games, updates, and DLC discovery catalog.",
-            "inLanguage": "en"
+            "description": "Xbox 360 ROMs, ISOs, and DLC download catalog with searchable metadata and ratings.",
+            "inLanguage": "en",
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://xbx.place/?q={search_term_string}"
+              },
+              "query-input": "required name=search_term_string"
+            }
           },
           {
             "@type": "Organization",
@@ -61,19 +94,324 @@
           {
             "@type": "CollectionPage",
             "@id": "https://xbx.place/#webpage",
-            "name": "xbx.place",
+            "name": "Xbox 360 ROMs & ISO Downloads",
             "url": "https://xbx.place/",
             "isPartOf": {
               "@id": "https://xbx.place/#website"
             },
-            "about": "Xbox 360 video games and downloadable content"
+            "about": "Xbox 360 video games and downloadable content",
+            "numberOfItems": 1847
+          },
+          {
+            "@type": "ItemList",
+            "@id": "https://xbx.place/#top-games",
+            "name": "Top Rated Xbox 360 Games",
+            "numberOfItems": 10,
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "item": {
+                  "@type": "VideoGame",
+                  "name": "Grand Theft Auto V",
+                  "url": "https://xbx.place/game/545408A7/",
+                  "gamePlatform": "Xbox 360",
+                  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "5", "bestRating": "5", "ratingCount": "1" }
+                }
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "item": {
+                  "@type": "VideoGame",
+                  "name": "Batman: Arkham Origins",
+                  "url": "https://xbx.place/game/57520828/",
+                  "gamePlatform": "Xbox 360",
+                  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.75", "bestRating": "5", "ratingCount": "1" }
+                }
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "item": {
+                  "@type": "VideoGame",
+                  "name": "Borderlands 2",
+                  "url": "https://xbx.place/game/5454087C/",
+                  "gamePlatform": "Xbox 360",
+                  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.75", "bestRating": "5", "ratingCount": "1" }
+                }
+              },
+              {
+                "@type": "ListItem",
+                "position": 4,
+                "item": {
+                  "@type": "VideoGame",
+                  "name": "Battlefield 4",
+                  "url": "https://xbx.place/game/454109BA/",
+                  "gamePlatform": "Xbox 360",
+                  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.75", "bestRating": "5", "ratingCount": "1" }
+                }
+              },
+              {
+                "@type": "ListItem",
+                "position": 5,
+                "item": {
+                  "@type": "VideoGame",
+                  "name": "Fallout 3",
+                  "url": "https://xbx.place/game/425307D5/",
+                  "gamePlatform": "Xbox 360",
+                  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.75", "bestRating": "5", "ratingCount": "1" }
+                }
+              },
+              {
+                "@type": "ListItem",
+                "position": 6,
+                "item": {
+                  "@type": "VideoGame",
+                  "name": "Diablo III",
+                  "url": "https://xbx.place/game/394F07D1/",
+                  "gamePlatform": "Xbox 360",
+                  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.75", "bestRating": "5", "ratingCount": "1" }
+                }
+              },
+              {
+                "@type": "ListItem",
+                "position": 7,
+                "item": {
+                  "@type": "VideoGame",
+                  "name": "Destiny",
+                  "url": "https://xbx.place/game/415608F8/",
+                  "gamePlatform": "Xbox 360",
+                  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.75", "bestRating": "5", "ratingCount": "1" }
+                }
+              },
+              {
+                "@type": "ListItem",
+                "position": 8,
+                "item": {
+                  "@type": "VideoGame",
+                  "name": "Dead Space 3",
+                  "url": "https://xbx.place/game/4541099D/",
+                  "gamePlatform": "Xbox 360",
+                  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.75", "bestRating": "5", "ratingCount": "1" }
+                }
+              },
+              {
+                "@type": "ListItem",
+                "position": 9,
+                "item": {
+                  "@type": "VideoGame",
+                  "name": "BattleBlock Theater",
+                  "url": "https://xbx.place/game/58410A30/",
+                  "gamePlatform": "Xbox 360",
+                  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.75", "bestRating": "5", "ratingCount": "1" }
+                }
+              },
+              {
+                "@type": "ListItem",
+                "position": 10,
+                "item": {
+                  "@type": "VideoGame",
+                  "name": "Fable Anniversary",
+                  "url": "https://xbx.place/game/4D530A87/",
+                  "gamePlatform": "Xbox 360",
+                  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.75", "bestRating": "5", "ratingCount": "1" }
+                }
+              }
+            ]
           }
         ]
       }
     </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What emulator plays Xbox 360 ROMs?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Xenia is the primary Xbox 360 emulator. It supports ISO and XEX files on Windows and Linux."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Are Xbox 360 ISOs free to download?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "xbx.place provides access to preservation archives hosted on Internet Archive. Users should only download titles they legally own."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What formats are Xbox 360 ROMs?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "The most common formats are ISO (full disc image), XEX (extracted game executable), and GOD (Games on Demand digital distribution)."
+            }
+          }
+        ]
+      }
+    </script>
+    <style>
+      #seo-content {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 32px 20px 64px;
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        font-size: 0.88rem;
+        line-height: 1.65;
+        color: #888;
+        background: #101010;
+        border-top: 1px solid #222;
+      }
+      #seo-content h2 {
+        color: #ccc;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0 0 12px;
+      }
+      #seo-content h3 {
+        color: #aaa;
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin: 24px 0 8px;
+      }
+      #seo-content p {
+        margin: 0 0 12px;
+      }
+      #seo-content ul {
+        margin: 0 0 12px;
+        padding-left: 20px;
+        columns: 2;
+        column-gap: 24px;
+      }
+      #seo-content li {
+        margin-bottom: 4px;
+      }
+      #seo-content a {
+        color: #5fdb5f;
+        text-decoration: none;
+      }
+      #seo-content a:hover {
+        text-decoration: underline;
+      }
+      #seo-content dl {
+        margin: 0;
+      }
+      #seo-content dt {
+        color: #aaa;
+        font-weight: 600;
+        margin-top: 12px;
+      }
+      #seo-content dd {
+        margin: 4px 0 0;
+      }
+      @media (max-width: 600px) {
+        #seo-content ul {
+          columns: 1;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>
+    <section id="seo-content" aria-label="Xbox 360 ROM catalog information">
+      <h2>Xbox 360 ROMs — Complete Catalog</h2>
+      <p>
+        Xbox 360 ROMs are digital copies of original Xbox 360 game discs — commonly distributed as
+        ISO, XEX, or GOD files. These archives preserve the complete game data from physical media,
+        allowing players to back up owned titles and run them on modern hardware through emulation.
+        The primary Xbox 360 emulator is
+        <a href="https://xenia-emulator.com/">Xenia</a>, which runs ISO and XEX files on Windows
+        and Linux with support for higher resolutions and improved frame rates.
+      </p>
+      <p>
+        xbx.place indexes 1,800+ Xbox 360 ROMs with searchable metadata, cover art, community
+        ratings, DLC packs, and title updates — all aligned with the Redump preservation standard.
+        Browse and download Xbox 360 games free from a unified, fast catalog built for preservation
+        and rediscovery.
+      </p>
+
+      <h3>Top Rated Xbox 360 Games</h3>
+      <ul>
+        <li><a href="/game/545408A7/">Grand Theft Auto V</a></li>
+        <li><a href="/game/57520828/">Batman: Arkham Origins</a></li>
+        <li><a href="/game/5454087C/">Borderlands 2</a></li>
+        <li><a href="/game/454109BA/">Battlefield 4</a></li>
+        <li><a href="/game/425307D5/">Fallout 3</a></li>
+        <li><a href="/game/394F07D1/">Diablo III</a></li>
+        <li><a href="/game/415608F8/">Destiny</a></li>
+        <li><a href="/game/4541099D/">Dead Space 3</a></li>
+        <li><a href="/game/58410A30/">BattleBlock Theater</a></li>
+        <li><a href="/game/4D530A87/">Fable Anniversary</a></li>
+        <li><a href="/game/415608FC/">Call of Duty: Ghosts</a></li>
+        <li><a href="/game/4B4D07F2/">Dead Island Riptide</a></li>
+        <li><a href="/game/4343081E/">Devil May Cry HD Collection</a></li>
+        <li><a href="/game/4E4D0862/">Dragon Ball Xenoverse</a></li>
+        <li><a href="/game/434D082D/">F1 2010</a></li>
+        <li><a href="/game/505407D1/">CLANNAD</a></li>
+        <li><a href="/game/435A07D8/">Espgaluda II Black Label</a></li>
+        <li><a href="/game/465607D8/">STEINS;GATE</a></li>
+        <li><a href="/game/465607D3/">CHAOS;HEAD NOAH</a></li>
+        <li><a href="/game/4E4D0860/">Dragon Ball Z Battle of Z</a></li>
+      </ul>
+
+      <h3>Supported Formats</h3>
+      <p>
+        The catalog includes Xbox 360 ROMs in ISO (disc image), XEX (extracted executable), and GOD
+        (Games on Demand) formats. Archives are typically distributed as .7z or .zip files and can
+        be extracted with 7-Zip or similar tools. Title updates and DLC packs are listed separately
+        where available.
+      </p>
+
+      <h3>About This Catalog</h3>
+      <p>
+        1,847 games indexed · 1,000+ add-ons · 9,326 downloadable files · Redump-aligned · sourced
+        from Internet Archive preservation mirrors. See our
+        <a href="/xbox-360-roms.html">Xbox 360 ROMs guide</a> for format details and emulation
+        setup, or <a href="/about.html">learn more about xbx.place</a>.
+      </p>
+
+      <h3>Browse by Genre</h3>
+      <ul>
+        <li><a href="/genre/action/">Action ROMs</a></li>
+        <li><a href="/genre/shooter/">Shooter ROMs</a></li>
+        <li><a href="/genre/rpg/">RPG ROMs</a></li>
+        <li><a href="/genre/racing/">Racing ROMs</a></li>
+        <li><a href="/genre/sports/">Sports ROMs</a></li>
+        <li><a href="/genre/fighting/">Fighting ROMs</a></li>
+        <li><a href="/genre/strategy/">Strategy ROMs</a></li>
+        <li><a href="/genre/family/">Family ROMs</a></li>
+        <li><a href="/genre/platformer/">Platformer ROMs</a></li>
+        <li><a href="/genre/music/">Music ROMs</a></li>
+        <li><a href="/genre/puzzle/">Puzzle ROMs</a></li>
+      </ul>
+
+      <h3>Frequently Asked Questions</h3>
+      <dl>
+        <dt>What emulator plays Xbox 360 ROMs?</dt>
+        <dd>
+          <a href="https://xenia-emulator.com/">Xenia</a> is the primary Xbox 360 emulator. It
+          supports ISO and XEX files on Windows and Linux, with ongoing compatibility improvements
+          for thousands of titles.
+        </dd>
+        <dt>Are Xbox 360 ISOs free to download?</dt>
+        <dd>
+          xbx.place provides access to preservation archives hosted on Internet Archive. These
+          files exist for game preservation and research purposes. Users should only download titles
+          they legally own.
+        </dd>
+        <dt>What formats are Xbox 360 ROMs?</dt>
+        <dd>
+          The most common formats are ISO (full disc image), XEX (extracted game executable), and
+          GOD (Games on Demand digital distribution). All three can be used with Xenia depending
+          on the title and dump type.
+        </dd>
+      </dl>
+    </section>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

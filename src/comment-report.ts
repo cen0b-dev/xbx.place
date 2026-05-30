@@ -1,3 +1,4 @@
+import { gamePagePath } from "./seo-url";
 import { getAccessToken } from "./auth";
 import { syncGameModalBackground } from "./data";
 import { dropdownMarkup, getDropdownValue, mountDropdown, setDropdownValue } from "./form-controls";
@@ -43,7 +44,7 @@ export function closeCommentReportUi(): void {
 }
 
 function gamePageUrl(game: TitleEntry): string {
-  return new URL(`?title=${encodeURIComponent(game.title_id)}`, window.location.origin).toString();
+  return new URL(gamePagePath(game.title_id), window.location.origin).toString();
 }
 
 export function openCommentReportModal(comment: GameComment, game: TitleEntry): void {

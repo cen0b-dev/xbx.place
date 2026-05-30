@@ -1,4 +1,5 @@
 import type { TitleEntry } from "./types";
+import { genrePagePath } from "./seo-url";
 
 export type GenreFilter = {
   slug: string;
@@ -30,7 +31,8 @@ export function isGenreSlug(slug: string | null | undefined): slug is string {
 }
 
 export function readGenreFromUrl(): string | null {
-  const slug = new URLSearchParams(window.location.search).get("genre");
+  const pathMatch = /^\/genre\/([^/]+)\/?$/i.exec(window.location.pathname);
+  const slug = pathMatch?.[1] ?? new URLSearchParams(window.location.search).get("genre");
   return isGenreSlug(slug) ? slug : null;
 }
 
@@ -38,8 +40,8 @@ export function syncGenreToUrl(genre: string | null, push = false): void {
   const url = new URL(window.location.href);
   url.searchParams.delete("title");
   url.searchParams.delete("profile");
-  if (genre) url.searchParams.set("genre", genre);
-  else url.searchParams.delete("genre");
+  url.searchParams.delete("genre");
+  url.pathname = genre ? genrePagePath(genre) : "/";
   const next = `${url.pathname}${url.search}${url.hash}`;
   if (push) window.history.pushState({ genre }, "", next);
   else window.history.replaceState({ genre }, "", next);
